@@ -72,7 +72,6 @@ func main() {
 	}))
 	app.Use(cache.New(cache.Config{
 		Next:         skipApi,
-		CacheControl: true,
 		CacheHeader:  "Cache-Status",
 		Expiration:   24 * time.Hour,
 	}))
@@ -87,7 +86,7 @@ func main() {
 	admin := api.Group("/admin")
 	if EnableEditing {
 		fmt.Println(" Editing: Enabled")
-		admin.All("/files/:subpath", filesHandler("./v1"))
+		admin.All("/files/:path?", filesHandler("./v1"))
 	}
 
 	app.Use(filesystem.New(filesystem.Config{
@@ -221,7 +220,18 @@ func DoCompiledFile(L *lua.LState, proto *lua.FunctionProto) error {
 
 func filesHandler(base string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		file := c.Params("subpath")
+		file := c.Params("path")
+		if file == "" {
+			dir, err := os.ReadDir(base)
+			if err != nil {
+				return err
+			}
+			names := make([]string, 0)
+			for _, file := range dir {
+				names = append(names, file.Name())
+			}
+			return c.JSON(names)
+		}
 		file = path.Join(base, file)
 		switch c.Method() {
 		case "GET":
@@ -257,7 +267,7 @@ func registerRequest(L *lua.LState, c *fiber.Ctx) {
 	query := L.NewTable()
 	L.SetField(req, "query", query)
 	c.Context().QueryArgs().VisitAll(func(key, value []byte) {
-		L.SetField(query, string(key), lua.LString(key))
+		L.SetField(query, string(key), lua.LString(value))
 	})
 
 	method := lua.LString(c.Method())

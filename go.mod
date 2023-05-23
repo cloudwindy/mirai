@@ -7,6 +7,7 @@ require (
 	github.com/gofiber/fiber/v2 v2.45.0
 	github.com/pkg/errors v0.9.1
 	github.com/vadv/gopher-lua-libs v0.4.1
+	github.com/wagslane/go-password-validator v0.3.0
 	github.com/yuin/gopher-lua v1.1.0
 	github.com/zs5460/art v0.2.0
 	golang.org/x/crypto v0.7.0
@@ -14,7 +15,6 @@ require (
 
 require (
 	github.com/VividCortex/ewma v1.1.1 // indirect
-	github.com/alessio/shellescape v1.4.1 // indirect
 	github.com/andybalholm/brotli v1.0.5 // indirect
 	github.com/aws/aws-sdk-go v1.33.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect

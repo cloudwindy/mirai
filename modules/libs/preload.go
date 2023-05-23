@@ -2,6 +2,7 @@ package libs
 
 import (
 	"mirai/modules/bcrypt"
+	"mirai/modules/pwdchecker"
 
 	"github.com/vadv/gopher-lua-libs/base64"
 	"github.com/vadv/gopher-lua-libs/chef"
@@ -21,14 +22,15 @@ import (
 	"github.com/vadv/gopher-lua-libs/stats"
 	"github.com/vadv/gopher-lua-libs/storage"
 	"github.com/vadv/gopher-lua-libs/strings"
-	"github.com/vadv/gopher-lua-libs/template"
 	"github.com/vadv/gopher-lua-libs/time"
 	lua "github.com/yuin/gopher-lua"
 )
 
 func PreloadAll(L *lua.LState) {
-	base64.Preload(L)
 	bcrypt.Preload(L)
+	pwdchecker.Preload(L)
+
+	base64.Preload(L)
 	chef.Preload(L)
 	cmd.Preload(L)
 	crypto.Preload(L)
@@ -46,6 +48,5 @@ func PreloadAll(L *lua.LState) {
 	stats.Preload(L)
 	storage.Preload(L)
 	strings.Preload(L)
-	template.Preload(L)
 	time.Preload(L)
 }

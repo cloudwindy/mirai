@@ -2,6 +2,7 @@ package libs
 
 import (
 	"mirai/modules/bcrypt"
+	"mirai/modules/msgpack"
 	"mirai/modules/pwdchecker"
 
 	"github.com/vadv/gopher-lua-libs/base64"
@@ -29,6 +30,7 @@ import (
 func PreloadAll(L *lua.LState) {
 	bcrypt.Preload(L)
 	pwdchecker.Preload(L)
+	msgpack.Preload(L)
 
 	base64.Preload(L)
 	chef.Preload(L)

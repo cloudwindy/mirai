@@ -4,11 +4,12 @@ import (
 	lua "github.com/yuin/gopher-lua"
 )
 
-var MinEntropy float64 = 60
+var DefaultMinEntropy float64 = 60
 
 func Check(L *lua.LState) int {
 	password := L.CheckString(1)
-	err := Validate(password, MinEntropy)
+	minEntropy := L.OptNumber(2, lua.LNumber(DefaultMinEntropy))
+	err := Validate(password, float64(minEntropy))
 	if err != nil {
 		L.Push(lua.LFalse)
 		L.Push(lua.LString(err.Error()))

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"embed"
 	"fmt"
 	"io/fs"
@@ -9,13 +8,11 @@ import (
 	"os"
 	"os/signal"
 	"path"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
 
-	"mirai/modules/libs"
-
+	"github.com/fatih/color"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cache"
 	"github.com/gofiber/fiber/v2/middleware/compress"
@@ -23,13 +20,14 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/etag"
 	"github.com/gofiber/fiber/v2/middleware/favicon"
 	"github.com/gofiber/fiber/v2/middleware/filesystem"
+	"github.com/gofiber/fiber/v2/middleware/limiter"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
+	"github.com/gofiber/fiber/v2/middleware/requestid"
 	"github.com/gofiber/fiber/v2/middleware/session"
 	sbolt "github.com/gofiber/storage/bbolt"
 	"github.com/pkg/errors"
 	lua "github.com/yuin/gopher-lua"
-	"github.com/yuin/gopher-lua/parse"
 	"github.com/zs5460/art"
 	bolt "go.etcd.io/bbolt"
 )
@@ -55,7 +53,7 @@ func main() {
 	done := make(chan any, 1)
 	go hardStop(term, done)
 
-	fmt.Println(art.String("Mirai Project"))
+	color.Blue(art.String("Mirai Project"))
 	fmt.Println(" Mirai Server " + Version + " with " + lua.LuaVersion)
 	fmt.Println(" Fiber " + fiber.Version)
 
@@ -63,22 +61,17 @@ func main() {
 		ServerHeader:          "Mirai Server",
 		DisableStartupMessage: true,
 	})
-	app.Use(logger.New())
-	app.Use(recover.New())
-	app.Use(cors.New())
 	app.Use(favicon.New())
+	app.Use(requestid.New())
+	app.Use(logger.New(logger.Config{
+		Done: func(c *fiber.Ctx, logString []byte) {
+			if tb := c.Locals("stacktrace"); tb != nil {
+				color.Red("%s", tb)
+			}
+		},
+	}))
+	app.Use(cors.New())
 	app.Use(compress.New())
-	skipApi := func(c *fiber.Ctx) bool {
-		return strings.HasPrefix(c.Path(), "/api")
-	}
-	app.Use(etag.New(etag.Config{
-		Next: skipApi,
-	}))
-	app.Use(cache.New(cache.Config{
-		Next:        skipApi,
-		CacheHeader: "Cache-Status",
-		Expiration:  24 * time.Hour,
-	}))
 
 	db, err := bolt.Open("db/data.db", 0o600, &bolt.Options{Timeout: 1 * time.Second})
 	if err != nil {
@@ -86,36 +79,44 @@ func main() {
 	}
 
 	storage := sbolt.New(sbolt.Config{
-		Database: "db/sessions.db",
+		Database: "db/fiber.db",
 	})
 	store := session.New(session.Config{
 		Storage: storage,
 	})
 
 	api := app.Group("/api")
+	api.Use(limiter.New(limiter.Config{
+		Max:        200,
+		Expiration: 10 * time.Minute,
+		Storage:    storage,
+	}))
+	api.Use(recover.New(recover.Config{
+		EnableStackTrace: true,
+	}))
 	api.All("/v1/:scriptname?/*", luaHandler("./v1", db, store))
 	admin := api.Group("/admin")
 	if EnableEditing {
-		fmt.Println(" Editing: Enabled")
+		fmt.Printf(" Editing: %s\n", color.GreenString("Enabled"))
 		admin.All("/files/:path?", filesHandler("./v1"))
 	}
 
+	app.Use(etag.New())
+	app.Use(cache.New(cache.Config{
+		CacheHeader:  "Cache-Status",
+		CacheControl: true,
+		Expiration:   72 * time.Hour,
+	}))
 	app.Use(filesystem.New(filesystem.Config{
 		Root:       http.FS(BuildFS),
 		PathPrefix: "build",
 	}))
-
 	app.Get("*", func(c *fiber.Ctx) error {
-		f, err := BuildFS.ReadFile("build/index.html")
-		if err != nil {
-			return err
-		}
-		return c.Status(200).Type("html").Send(f)
+		c.Path("/")
+		return c.RestartRouting()
 	})
 
-	fmt.Println()
-	fmt.Println(" Listening at " + Listen)
-	fmt.Println()
+	fmt.Println("\n Listening at", color.BlueString(Listen))
 	if err := app.Listen(Listen); err != nil {
 		panic(errors.Wrap(err, "无法启动 HTTP 服务器"))
 	}
@@ -150,7 +151,6 @@ func luaHandler(base string, db *bolt.DB, store *session.Store) fiber.Handler {
 			}
 			luaCache[file] = proto
 			filesStat[file] = stat
-			fmt.Println("cache missed")
 		}
 
 		L := luaPool.Get()
@@ -167,11 +167,23 @@ func luaHandler(base string, db *bolt.DB, store *session.Store) fiber.Handler {
 		registerKVStore(L, db)
 
 		if err := DoCompiledFile(L, luaCache[file]); err != nil {
+			if lerr := err.(*lua.ApiError); lerr != nil {
+				c.Locals("stacktrace", lerr.StackTrace)
+				return &apiError{msg: lerr.Object.String()}
+			}
 			return err
 		}
 
 		return nil
 	}
+}
+
+type apiError struct {
+	msg string
+}
+
+func (e *apiError) Error() string {
+	return e.msg
 }
 
 func filesHandler(base string) fiber.Handler {
@@ -211,7 +223,7 @@ func registerRequest(L *lua.LState, c *fiber.Ctx) {
 	req := L.NewTable()
 	L.SetGlobal("req", req)
 
-	L.SetField(req, "base_url", lua.LString(c.BaseURL()))
+	L.SetField(req, "id", lua.LString(c.Locals("requestid").(string)))
 	L.SetField(req, "method", lua.LString(c.Method()))
 	L.SetField(req, "url", lua.LString(c.OriginalURL()))
 	L.SetField(req, "protocol", lua.LString(c.Protocol()))
@@ -286,6 +298,24 @@ func registerResponse(L *lua.LState, c *fiber.Ctx) {
 func registerSession(L *lua.LState, s *session.Session) {
 	sess := L.NewTable()
 	L.SetGlobal("sess", sess)
+	mt := L.NewTable()
+	L.SetMetatable(sess, mt)
+
+	L.SetField(mt, "__index", L.NewFunction(func(L *lua.LState) int {
+		key := L.CheckString(2)
+		value, ok := s.Get(key).(string)
+		if !ok {
+			L.Push(lua.LNil)
+		}
+		L.Push(lua.LString(value))
+		return 1
+	}))
+	L.SetField(mt, "__newindex", L.NewFunction(func(L *lua.LState) int {
+		key := L.CheckString(2)
+		value := L.ToString(3)
+		s.Set(key, value)
+		return 0
+	}))
 	L.SetField(sess, "keys", L.NewFunction(func(L *lua.LState) int {
 		k := L.NewTable()
 		for _, key := range s.Keys() {
@@ -294,7 +324,7 @@ func registerSession(L *lua.LState, s *session.Session) {
 		L.Push(k)
 		return 1
 	}))
-	L.SetField(sess, "save", L.NewFunction(func(l *lua.LState) int {
+	L.SetField(sess, "save", L.NewFunction(func(L *lua.LState) int {
 		if err := s.Save(); err != nil {
 			L.Error(lua.LString(err.Error()), 1)
 		}
@@ -306,24 +336,6 @@ func registerSession(L *lua.LState, s *session.Session) {
 		}
 		return 0
 	}))
-
-	mtSess := L.NewTable()
-	L.SetField(mtSess, "__index", L.NewFunction(func(L *lua.LState) int {
-		key := L.CheckString(2)
-		value, ok := s.Get(key).(string)
-		if !ok {
-			L.Push(lua.LNil)
-		}
-		L.Push(lua.LString(value))
-		return 1
-	}))
-	L.SetField(mtSess, "__newindex", L.NewFunction(func(L *lua.LState) int {
-		key := L.CheckString(2)
-		value := L.ToString(3)
-		s.Set(key, value)
-		return 0
-	}))
-	L.SetMetatable(sess, mtSess)
 }
 
 type Bucket struct {
@@ -344,238 +356,15 @@ func registerKVStore(L *lua.LState, db *bolt.DB) {
 		L.Push(ud)
 		return 1
 	}))
-  L.SetField(mt, "__index", L.NewFunction(lkvIndex))
-  L.SetField(mt, "__newindex", L.NewFunction(lkvPut))
-}
-
-var lkvExports = map[string]lua.LGFunction{
-  "__index": lkvGet,
-  "__newindex": lkvPut,
-  "keys": lkvKeys,
-  "drop": lkvDrop,
-}
-
-func lkvIndex(L *lua.LState) int {
-  switch L.CheckString(2) {
-    case "keys":
-      L.Push(L.NewFunction(lkvKeys))
-      return 1
-    case "drop":
-      L.Push(L.NewFunction(lkvDrop))
-      return 1
-    default:
-      return lkvGet(L)
-  }
-}
-
-func lkvCheck(L *lua.LState) *Bucket {
-	ud := L.CheckUserData(1)
-	if v, ok := ud.Value.(*Bucket); ok {
-		return v
-	}
-	L.ArgError(1, "bucket expected")
-	return nil
-}
-
-func lkvGet(L *lua.LState) int {
-	bucket := lkvCheck(L)
-	key := L.CheckString(2)
-	res, err := kvGet(bucket.DB, bucket.Name, key)
-	if err != nil {
-		L.Error(lua.LString(err.Error()), 1)
-	}
-	if res == nil {
-		L.Push(lua.LNil)
-	}
-	L.Push(lua.LString(*res))
-	return 1
-}
-
-func lkvKeys(L *lua.LState) int {
-	bucket := lkvCheck(L)
-	res, err := kvKeys(bucket.DB, bucket.Name)
-	if err != nil {
-		L.Error(lua.LString(err.Error()), 1)
-	}
-	if res == nil {
-		L.Push(lua.LNil)
-		return 1
-	}
-	t := L.NewTable()
-	for _, v := range res {
-		t.Append(lua.LString(v))
-	}
-	L.Push(t)
-	return 1
-}
-
-func lkvPut(L *lua.LState) int {
-	bucket := lkvCheck(L)
-	key := L.CheckString(2)
-	value := L.CheckString(3)
-	if err := kvPut(bucket.DB, bucket.Name, key, value); err != nil {
-		L.Error(lua.LString(err.Error()), 1)
-	}
-	return 0
-}
-
-func lkvDrop(L *lua.LState) int {
-	bucket := lkvCheck(L)
-	if err := kvDrop(bucket.DB, bucket.Name); err != nil {
-		L.Error(lua.LString(err.Error()), 1)
-	}
-	return 0
-}
-
-func kvBucket(tx *bolt.Tx, bucket []string) *bolt.Bucket {
-	b := tx.Bucket([]byte(bucket[0]))
-	if b == nil {
-		return nil
-	}
-	for _, part := range bucket[1:] {
-		b = b.Bucket([]byte(part))
-		if b == nil {
-			return nil
+	L.SetField(mt, "__index", L.NewFunction(func(L *lua.LState) int {
+		key := L.CheckString(2)
+		if fn, ok := lkvExports[key]; ok {
+			L.Push(L.NewFunction(fn))
+			return 1
 		}
-	}
-	return b
-}
-
-var delimiter = ":"
-
-func kvGet(db *bolt.DB, bucket, key string) (*string, error) {
-	tx, err := db.Begin(false)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-
-	parts := strings.Split(bucket, delimiter)
-	b := kvBucket(tx, parts)
-	res := string(b.Get([]byte(key)))
-	return &res, nil
-}
-
-func kvKeys(db *bolt.DB, bucket string) ([]string, error) {
-	tx, err := db.Begin(false)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-
-	parts := strings.Split(bucket, delimiter)
-	b := kvBucket(tx, parts)
-	res := make([]string, 0)
-	err = b.ForEach(func(k, v []byte) error {
-		res = append(res, string(k))
-		return nil
-	})
-	return res, err
-}
-
-func kvPut(db *bolt.DB, bucket, key, value string) error {
-	tx, err := db.Begin(true)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	parts := strings.Split(bucket, delimiter)
-	b := kvBucket(tx, parts)
-	err = b.Put([]byte(key), []byte(value))
-	if err != nil {
-		return err
-	}
-	if err = tx.Commit(); err != nil {
-		return err
-	}
-	return nil
-}
-
-func kvDrop(db *bolt.DB, bucket string) error {
-	tx, err := db.Begin(true)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	parts := strings.Split(bucket, delimiter)
-	if len(parts) <= 1 {
-		if err = tx.DeleteBucket([]byte(bucket)); err != nil {
-			return err
-		}
-	} else {
-		b := kvBucket(tx, parts[:len(parts)-2])
-		if err = b.DeleteBucket([]byte(bucket)); err != nil {
-			return err
-		}
-	}
-	if err = tx.Commit(); err != nil {
-		return err
-	}
-	return nil
-}
-
-type lStatePool struct {
-	m     sync.Mutex
-	saved []*lua.LState
-}
-
-func (pl *lStatePool) Get() *lua.LState {
-	pl.m.Lock()
-	defer pl.m.Unlock()
-	n := len(pl.saved)
-	if n == 0 {
-		return pl.New()
-	}
-	x := pl.saved[n-1]
-	pl.saved = pl.saved[0 : n-1]
-	return x
-}
-
-func (pl *lStatePool) New() *lua.LState {
-	L := lua.NewState()
-	// setting the L up here.
-	// load scripts, set global variables, share channels, etc...
-	libs.PreloadAll(L)
-	return L
-}
-
-func (pl *lStatePool) Put(L *lua.LState) {
-	pl.m.Lock()
-	defer pl.m.Unlock()
-	pl.saved = append(pl.saved, L)
-}
-
-func (pl *lStatePool) Shutdown() {
-	for _, L := range pl.saved {
-		L.Close()
-	}
-}
-
-// CompileLua reads the passed lua file from disk and compiles it.
-func CompileLua(filePath string) (*lua.FunctionProto, error) {
-	file, err := os.Open(filePath)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-	reader := bufio.NewReader(file)
-	chunk, err := parse.Parse(reader, filePath)
-	if err != nil {
-		return nil, err
-	}
-	proto, err := lua.Compile(chunk, filePath)
-	if err != nil {
-		return nil, err
-	}
-	return proto, nil
-}
-
-func DoCompiledFile(L *lua.LState, proto *lua.FunctionProto) error {
-	lfunc := L.NewFunctionFromProto(proto)
-	L.Push(lfunc)
-	return L.PCall(0, lua.MultRet, nil)
+		return lkvGet(L)
+	}))
+	L.SetField(mt, "__newindex", L.NewFunction(lkvPut))
 }
 
 func hardStop(termCh chan os.Signal, stopCh chan any) {

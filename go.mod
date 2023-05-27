@@ -3,11 +3,12 @@ module mirai
 go 1.20
 
 require (
+	github.com/fatih/color v1.7.0
 	github.com/gofiber/fiber/v2 v2.45.0
 	github.com/gofiber/storage/bbolt v1.3.4
 	github.com/pkg/errors v0.9.1
+	github.com/ucarion/urlpath v0.0.0-20200424170820-7ccc79b76bbb
 	github.com/vadv/gopher-lua-libs v0.4.1
-	github.com/vmihailenco/msgpack v4.0.4+incompatible
 	github.com/wagslane/go-password-validator v0.3.0
 	github.com/yuin/gopher-lua v1.1.0
 	github.com/zs5460/art v0.2.0
@@ -24,7 +25,6 @@ require (
 	github.com/cespare/xxhash/v2 v2.1.1 // indirect
 	github.com/cheggaaa/pb/v3 v3.0.5 // indirect
 	github.com/dustin/go-humanize v1.0.0 // indirect
-	github.com/fatih/color v1.7.0 // indirect
 	github.com/go-sql-driver/mysql v1.5.0 // indirect
 	github.com/gofiber/utils v1.0.1 // indirect
 	github.com/golang/protobuf v1.3.2 // indirect
@@ -55,7 +55,6 @@ require (
 	github.com/yuin/gluamapper v0.0.0-20150323120927-d836955830e7 // indirect
 	golang.org/x/net v0.8.0 // indirect
 	golang.org/x/sys v0.8.0 // indirect
-	google.golang.org/appengine v1.6.7 // indirect
 	gopkg.in/xmlpath.v2 v2.0.0-20150820204837-860cbeca3ebc // indirect
 	gopkg.in/yaml.v2 v2.3.0 // indirect
 )

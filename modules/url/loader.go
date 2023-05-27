@@ -1,15 +1,15 @@
-package msgpack
+package url
 
 import (
 	lua "github.com/yuin/gopher-lua"
 )
 
-// Preload adds msgpack to the given Lua state's package.preload table. After it
+// Preload adds url to the given Lua state's package.preload table. After it
 // has been preloaded, it can be loaded using require:
 //
-//  local msgpack = require("msgpack")
+//	local url = require("url")
 func Preload(L *lua.LState) {
-	L.PreloadModule("msgpack", Loader)
+	L.PreloadModule("url", Loader)
 }
 
 // Loader is the module loader function.
@@ -21,7 +21,5 @@ func Loader(L *lua.LState) int {
 }
 
 var api = map[string]lua.LGFunction{
-	"tableIsObject": TableIsObject,
-	"decode":        Decode,
-	"encode":        Encode,
+	"new": New,
 }

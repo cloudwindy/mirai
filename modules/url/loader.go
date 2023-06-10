@@ -21,5 +21,9 @@ func Loader(L *lua.LState) int {
 }
 
 var api = map[string]lua.LGFunction{
-	"new": New,
+	"new":       New,
+	"encode":    Encode,
+	"decode":    Decode,
+	"normalize": Normalize,
+	"resolve":   URLResolve,
 }

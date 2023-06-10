@@ -1,6 +1,14 @@
 package main
 
-import lua "github.com/yuin/gopher-lua"
+import (
+	lua "github.com/yuin/gopher-lua"
+	bolt "go.etcd.io/bbolt"
+)
+
+type Bucket struct {
+	DB   *bolt.DB
+	Name string
+}
 
 var lkvExports = map[string]lua.LGFunction{
 	"create": lkvCreate,
@@ -22,7 +30,7 @@ func lkvCreate(L *lua.LState) int {
 	bucket := lkvCheck(L)
 	_, err := kvCreateBucket(bucket.DB, bucket.Name)
 	if err != nil {
-		L.Error(lua.LString(err.Error()), 1)
+		L.RaiseError("create bucket failed: %v", err)
 	}
 	return 0
 }
@@ -32,7 +40,7 @@ func lkvGet(L *lua.LState) int {
 	key := L.CheckString(2)
 	res, err := kvGet(bucket.DB, bucket.Name, key)
 	if err != nil {
-		L.Error(lua.LString(err.Error()), 1)
+		L.RaiseError("get bucket key failed: %v", err)
 	}
 	if res == nil {
 		L.Push(lua.LNil)
@@ -46,7 +54,7 @@ func lkvExists(L *lua.LState) int {
 	bucket := lkvCheck(L)
 	res, err := kvExists(bucket.DB, bucket.Name)
 	if err != nil {
-		L.Error(lua.LString(err.Error()), 1)
+		L.RaiseError("get bucket exists failed: %v", err)
 	}
 	if !res {
 		L.Push(lua.LTrue)
@@ -60,7 +68,7 @@ func lkvKeys(L *lua.LState) int {
 	bucket := lkvCheck(L)
 	res, err := kvKeys(bucket.DB, bucket.Name)
 	if err != nil {
-		L.Error(lua.LString(err.Error()), 1)
+		L.RaiseError("get bucket keys failed: %v", err)
 	}
 	if res == nil {
 		L.Push(lua.LNil)
@@ -77,9 +85,15 @@ func lkvKeys(L *lua.LState) int {
 func lkvPut(L *lua.LState) int {
 	bucket := lkvCheck(L)
 	key := L.CheckString(2)
+	if L.Get(3) == lua.LNil {
+		if err := kvDel(bucket.DB, bucket.Name, key); err != nil {
+			L.RaiseError("del bucket key failed: %v", err)
+		}
+		return 0
+	}
 	value := L.CheckString(3)
 	if err := kvPut(bucket.DB, bucket.Name, key, value); err != nil {
-		L.Error(lua.LString(err.Error()), 1)
+		L.RaiseError("put bucket key failed: %v", err)
 	}
 	return 0
 }
@@ -87,7 +101,7 @@ func lkvPut(L *lua.LState) int {
 func lkvDrop(L *lua.LState) int {
 	bucket := lkvCheck(L)
 	if err := kvDrop(bucket.DB, bucket.Name); err != nil {
-		L.Error(lua.LString(err.Error()), 1)
+		L.RaiseError("drop bucket failed: %v", err)
 	}
 	return 0
 }

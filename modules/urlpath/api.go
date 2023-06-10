@@ -14,14 +14,17 @@ func New(L *lua.LState) int {
 
 	mt := L.NewTable()
 	L.SetMetatable(ud, mt)
-	exports := L.NewTable()
-	L.SetField(mt, "__index", exports)
 	
-	L.SetFuncs(exports, map[string]lua.LGFunction{
-		"match": Match,
-	})
+	exports := L.NewTable()
+	L.SetFuncs(exports, urlPathExports)
+	mt.RawSetString("__index", exports)
+
 	L.Push(ud)
 	return 1
+}
+
+var urlPathExports = map[string]lua.LGFunction{
+	"match": Match,
 }
 
 func Match(L *lua.LState) int {

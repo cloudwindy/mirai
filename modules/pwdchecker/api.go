@@ -6,6 +6,11 @@ import (
 
 var DefaultMinEntropy float64 = 60
 
+func CallCheck(L *lua.LState) int {
+	L.Remove(1)
+	return Check(L)
+}
+
 func Check(L *lua.LState) int {
 	password := L.CheckString(1)
 	minEntropy := L.OptNumber(2, lua.LNumber(DefaultMinEntropy))

@@ -5,28 +5,65 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/PuerkitoBio/purell"
 	lua "github.com/yuin/gopher-lua"
 )
 
+var LTURL = "URL"
+
 func New(L *lua.LState) int {
 	var u *url.URL
-	if L.GetTop() == 1 {
-		u = GetURL(L, 1)
-	} else {
-		u = GetURL(L, 2)
-		u.Path = L.CheckString(1)
+	u = GetURL(L, 1)
+	if L.GetTop() > 1 {
+		base := GetURL(L, 2)
+		u = base.ResolveReference(u)
 	}
 	obj := L.NewUserData()
 	obj.Value = u
-	mt := L.NewTable()
-	L.SetMetatable(obj, mt)
+	mt := L.NewTypeMetatable(LTURL)
 	L.SetFuncs(mt, map[string]lua.LGFunction{
 		"__index":    URLGet,
 		"__newindex": URLSet,
 		"__concat":   URLResolve,
 	})
+	L.SetMetatable(obj, mt)
 	L.Push(obj)
 	return 1
+}
+
+func Normalize(L *lua.LState) int {
+	s := L.CheckString(1)
+
+	s, err := purell.NormalizeURLString(s, purell.FlagsSafe|purell.FlagRemoveDotSegments)
+	if err != nil {
+		L.RaiseError("url normalize failed: %v", err)
+	}
+
+	L.Push(lua.LString(s))
+	return 1
+}
+
+func Encode(L *lua.LState) int {
+	s := L.CheckString(1)
+	s = url.QueryEscape(s)
+	L.Push(lua.LString(s))
+	return 1
+}
+
+func Decode(L *lua.LState) int {
+	s := L.CheckString(1)
+
+	s, err := url.QueryUnescape(s)
+	if err != nil {
+		L.RaiseError("url query unescape failed: %v", err)
+	}
+
+	L.Push(lua.LString(s))
+	return 1
+}
+
+var URLExports = map[string]lua.LGFunction{
+	"resolve": URLResolve,
 }
 
 func URLGet(L *lua.LState) int {
@@ -60,13 +97,17 @@ func URLGet(L *lua.LState) int {
 	case "search_params":
 		q := L.NewTable()
 		for k, v := range u.Query() {
-			L.SetField(q, k, lua.LString(v[0]))
+			q.RawSetString(k, lua.LString(v[0]))
 		}
 		L.Push(q)
 	case "username":
 		L.Push(lua.LString(u.User.Username()))
 	default:
-		L.Push(lua.LNil)
+		if v, ok := URLExports[k]; ok {
+			L.Push(L.NewFunction(v))
+		} else {
+			L.Push(lua.LNil)
+		}
 	}
 	return 1
 }
@@ -90,7 +131,7 @@ func URLSet(L *lua.LState) int {
 	case "href":
 		u, err := url.Parse(v)
 		if err != nil {
-			L.Error(lua.LString(err.Error()), 1)
+			L.RaiseError("url parse failed: %v", err)
 		}
 		ud.Value = u
 	case "password":
@@ -100,7 +141,7 @@ func URLSet(L *lua.LState) int {
 	case "port":
 		hostname, _, err := net.SplitHostPort(u.Host)
 		if err != nil {
-			L.Error(lua.LString(err.Error()), 1)
+			L.RaiseError("url split host port failed: %v", err)
 		}
 		u.Host = net.JoinHostPort(hostname, v)
 	case "protocol":
@@ -117,31 +158,43 @@ func URLSet(L *lua.LState) int {
 func URLResolve(L *lua.LState) int {
 	ud := L.CheckUserData(1)
 	path := L.CheckString(2)
+
 	u := ud.Value.(*url.URL)
-	path = u.JoinPath(path).Path
-	L.Push(lua.LString(path))
+	u = u.JoinPath(path)
+	ud = L.NewUserData()
+	ud.Value = u
+
+	mt := L.GetTypeMetatable(LTURL)
+	L.SetMetatable(ud, mt)
+
+	L.Push(ud)
 	return 1
 }
 
 func GetURL(L *lua.LState, n int) *url.URL {
 	if L.GetTop() == 0 {
-		L.Error(lua.LString("expected url"), 1)
+		L.ArgError(1, "expected url")
 	}
-	ud := L.OptUserData(n, nil)
-	if ud == nil {
+
+	v := L.Get(n)
+	if ud, ok := v.(*lua.LUserData); ok {
 		u, ok := ud.Value.(*url.URL)
 		if !ok {
 			return nil
 		}
 		return u
 	}
-	str := L.OptString(n, "")
+	str := L.CheckString(1)
 	if str == "" {
-		L.Error(lua.LString("url empty"), 1)
+		L.ArgError(1, "url empty")
+	}
+	str, err := purell.NormalizeURLString(str, purell.FlagsSafe|purell.FlagRemoveDotSegments)
+	if err != nil {
+		L.RaiseError("url normalize failed: %v", err)
 	}
 	u, err := url.Parse(str)
 	if err != nil {
-		L.Error(lua.LString(err.Error()), 1)
+		L.RaiseError("url parse failed: %v", err)
 	}
 	return u
 }

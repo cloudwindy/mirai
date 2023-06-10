@@ -127,6 +127,28 @@ func kvPut(db *bolt.DB, bucket, key, value string) error {
 	return nil
 }
 
+func kvDel(db *bolt.DB, bucket, key string) error {
+	tx, err := db.Begin(true)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	parts := strings.Split(bucket, delimiter)
+	b := kvBucket(tx, parts)
+	if b == nil {
+		return nil
+	}
+	err = b.Delete([]byte(key))
+	if err != nil {
+		return err
+	}
+	if err = tx.Commit(); err != nil {
+		return err
+	}
+	return nil
+}
+
 func kvDrop(db *bolt.DB, bucket string) error {
 	tx, err := db.Begin(true)
 	if err != nil {

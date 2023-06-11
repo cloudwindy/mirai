@@ -13,6 +13,7 @@ require (
 	github.com/ucarion/urlpath v0.0.0-20200424170820-7ccc79b76bbb
 	github.com/vadv/gopher-lua-libs v0.4.1
 	github.com/wagslane/go-password-validator v0.3.0
+	github.com/yuin/gluamapper v0.0.0-20150323120927-d836955830e7
 	github.com/yuin/gopher-lua v1.1.0
 	github.com/zs5460/art v0.2.0
 	go.etcd.io/bbolt v1.3.7
@@ -30,6 +31,7 @@ require (
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.18 // indirect
 	github.com/mattn/go-runewidth v0.0.14 // indirect
+	github.com/mitchellh/mapstructure v1.3.2 // indirect
 	github.com/montanaflynn/stats v0.6.3 // indirect
 	github.com/philhofer/fwd v1.1.2 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect

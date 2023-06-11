@@ -1,4 +1,4 @@
-package main
+package kv
 
 import (
 	"strings"
@@ -7,7 +7,7 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
-func kvBucket(tx *bolt.Tx, bucket []string) *bolt.Bucket {
+func Bucket(tx *bolt.Tx, bucket []string) *bolt.Bucket {
 	b := tx.Bucket([]byte(bucket[0]))
 	if b == nil {
 		return nil
@@ -21,7 +21,7 @@ func kvBucket(tx *bolt.Tx, bucket []string) *bolt.Bucket {
 	return b
 }
 
-func kvCreateBucket(db *bolt.DB, bucket string) (*bolt.Bucket, error) {
+func CreateBucket(db *bolt.DB, bucket string) (*bolt.Bucket, error) {
 	tx, err := db.Begin(true)
 	if err != nil {
 		return nil, err
@@ -54,7 +54,7 @@ func kvCreateBucket(db *bolt.DB, bucket string) (*bolt.Bucket, error) {
 
 var delimiter = ":"
 
-func kvGet(db *bolt.DB, bucket, key string) (*string, error) {
+func Get(db *bolt.DB, bucket, key string) (*string, error) {
 	tx, err := db.Begin(false)
 	if err != nil {
 		return nil, err
@@ -62,7 +62,7 @@ func kvGet(db *bolt.DB, bucket, key string) (*string, error) {
 	defer tx.Rollback()
 
 	parts := strings.Split(bucket, delimiter)
-	b := kvBucket(tx, parts)
+	b := Bucket(tx, parts)
 	if b == nil {
 		return nil, nil
 	}
@@ -70,7 +70,7 @@ func kvGet(db *bolt.DB, bucket, key string) (*string, error) {
 	return &res, nil
 }
 
-func kvExists(db *bolt.DB, bucket string) (bool, error) {
+func Exists(db *bolt.DB, bucket string) (bool, error) {
 	tx, err := db.Begin(false)
 	if err != nil {
 		return false, err
@@ -78,14 +78,14 @@ func kvExists(db *bolt.DB, bucket string) (bool, error) {
 	defer tx.Rollback()
 
 	parts := strings.Split(bucket, delimiter)
-	b := kvBucket(tx, parts)
+	b := Bucket(tx, parts)
 	if b == nil {
 		return false, nil
 	}
 	return true, nil
 }
 
-func kvKeys(db *bolt.DB, bucket string) ([]string, error) {
+func Keys(db *bolt.DB, bucket string) ([]string, error) {
 	tx, err := db.Begin(false)
 	if err != nil {
 		return nil, err
@@ -93,7 +93,7 @@ func kvKeys(db *bolt.DB, bucket string) ([]string, error) {
 	defer tx.Rollback()
 
 	parts := strings.Split(bucket, delimiter)
-	b := kvBucket(tx, parts)
+	b := Bucket(tx, parts)
 	res := make([]string, 0)
 	if b == nil {
 		return nil, nil
@@ -105,7 +105,7 @@ func kvKeys(db *bolt.DB, bucket string) ([]string, error) {
 	return res, err
 }
 
-func kvPut(db *bolt.DB, bucket, key, value string) error {
+func Put(db *bolt.DB, bucket, key, value string) error {
 	tx, err := db.Begin(true)
 	if err != nil {
 		return err
@@ -113,7 +113,7 @@ func kvPut(db *bolt.DB, bucket, key, value string) error {
 	defer tx.Rollback()
 
 	parts := strings.Split(bucket, delimiter)
-	b := kvBucket(tx, parts)
+	b := Bucket(tx, parts)
 	if b == nil {
 		return nil
 	}
@@ -127,7 +127,7 @@ func kvPut(db *bolt.DB, bucket, key, value string) error {
 	return nil
 }
 
-func kvDel(db *bolt.DB, bucket, key string) error {
+func Del(db *bolt.DB, bucket, key string) error {
 	tx, err := db.Begin(true)
 	if err != nil {
 		return err
@@ -135,7 +135,7 @@ func kvDel(db *bolt.DB, bucket, key string) error {
 	defer tx.Rollback()
 
 	parts := strings.Split(bucket, delimiter)
-	b := kvBucket(tx, parts)
+	b := Bucket(tx, parts)
 	if b == nil {
 		return nil
 	}
@@ -149,7 +149,7 @@ func kvDel(db *bolt.DB, bucket, key string) error {
 	return nil
 }
 
-func kvDrop(db *bolt.DB, bucket string) error {
+func Drop(db *bolt.DB, bucket string) error {
 	tx, err := db.Begin(true)
 	if err != nil {
 		return err
@@ -162,7 +162,7 @@ func kvDrop(db *bolt.DB, bucket string) error {
 			return err
 		}
 	} else {
-		b := kvBucket(tx, parts[:len(parts)-2])
+		b := Bucket(tx, parts[:len(parts)-2])
 		if b == nil {
 			return errors.New("key does not exist")
 		}

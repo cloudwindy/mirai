@@ -1,10 +1,8 @@
 package main
 
 import (
-	"embed"
 	"fmt"
 	"io/fs"
-	"net/http"
 	"os"
 	"os/signal"
 	"path"
@@ -13,6 +11,9 @@ import (
 	"syscall"
 	"time"
 
+	"mirai/lib/lkv"
+	"mirai/lib/lpool"
+
 	"github.com/fatih/color"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cache"
@@ -20,7 +21,6 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/etag"
 	"github.com/gofiber/fiber/v2/middleware/favicon"
-	"github.com/gofiber/fiber/v2/middleware/filesystem"
 	"github.com/gofiber/fiber/v2/middleware/limiter"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/pprof"
@@ -35,14 +35,9 @@ import (
 )
 
 const (
-	Version       = "1.0"
-	Listen        = ":3000"
-	EnableEditing = true
-	ScriptDir    = "./v1"
+	Version    = "1.0"
+	ConfigFile = "./config.lua"
 )
-
-//go:embed build/*
-var BuildFS embed.FS
 
 func init() {
 	lua.LuaPathDefault += ";./lib/?.lua;./lib/?/init.lua"
@@ -64,6 +59,7 @@ func main() {
 	fmt.Println(" Mirai Server " + Version + " with " + lua.LuaVersion)
 	fmt.Println(" Fiber " + fiber.Version)
 
+	c := GetConfig(ConfigFile)
 	defer luaPool.Shutdown()
 
 	app := fiber.New(fiber.Config{
@@ -97,42 +93,43 @@ func main() {
 	})
 
 	api := app.Group("/api")
-	api.Use(StartTimer())
 	api.Use(limiter.New(limiter.Config{
 		Max:        200,
 		Expiration: 10 * time.Minute,
 	}))
-	api.Use(PrintTimer("limiter", "Rate Limiter", true))
 	api.Use(recover.New(recover.Config{
 		EnableStackTrace: true,
 	}))
 	api.Use(PrintTimer("exec", "Script Execution"))
-	api.All("/v1/:scriptname?/*", luaHandler(ScriptDir, db, store))
+	api.All("/v1/:scriptname?/*", luaHandler(c.ScriptDir, c.env, db, store))
 
 	admin := api.Group("/admin")
-	if EnableEditing {
+	if c.Editing {
 		fmt.Printf(" Editing: %s\n", color.GreenString("Enabled"))
-		admin.All("/files/:path?", filesHandler(ScriptDir))
+		admin.All("/files/:path?", filesHandler(c.ScriptDir))
 	}
 
 	app.Use(etag.New())
 	app.Use(cache.New(cache.Config{
 		Storage:      storage,
 		CacheHeader:  "Cache-Status",
-		CacheControl: true,
+		CacheControl: false,
 		Expiration:   72 * time.Hour,
 	}))
-	app.Use(filesystem.New(filesystem.Config{
-		Root:       http.FS(BuildFS),
-		PathPrefix: "build",
-	}))
+	// app.Use(filesystem.New(filesystem.Config{
+	// 	Root:       http.FS(BuildFS),
+	// 	PathPrefix: "build",
+	// }))
+	app.Static("/", c.RootDir, fiber.Static{
+		ByteRange: true,
+	})
 	app.Get("*", func(c *fiber.Ctx) error {
 		c.Path("/")
 		return c.RestartRouting()
 	})
 
-	fmt.Printf("\n Listening at %s\n\n", color.BlueString(Listen))
-	if err := app.Listen(Listen); err != nil {
+	fmt.Printf("\n Listening at %s\n\n", color.BlueString(c.Listen))
+	if err := app.Listen(c.Listen); err != nil {
 		panic(errors.Wrap(err, "无法启动 HTTP 服务器"))
 	}
 }
@@ -183,12 +180,12 @@ func PrintTimer(name string, desc string, started ...bool) fiber.Handler {
 var (
 	filesStat = make(map[string]fs.FileInfo)
 	luaCache  = make(map[string]*lua.FunctionProto)
-	luaPool   = &lStatePool{
-		saved: make([]*lua.LState, 0, 4),
+	luaPool   = &lpool.StatePool{
+		Saved: make([]*lua.LState, 0, 4),
 	}
 )
 
-func luaHandler(base string, db *bolt.DB, store *session.Store) fiber.Handler {
+func luaHandler(base string, env *lua.LTable, db *bolt.DB, store *session.Store) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		file := c.Params("scriptname", "index") + ".lua"
 		file = path.Join(base, file)
@@ -203,7 +200,7 @@ func luaHandler(base string, db *bolt.DB, store *session.Store) fiber.Handler {
 
 		prev, ok := filesStat[file]
 		if !ok || stat.Size() != prev.Size() || stat.ModTime() != prev.ModTime() {
-			proto, err := CompileLua(file)
+			proto, err := lpool.CompileLua(file)
 			if err != nil {
 				return err
 			}
@@ -218,12 +215,13 @@ func luaHandler(base string, db *bolt.DB, store *session.Store) fiber.Handler {
 			return err
 		}
 
+		registerEnv(L, env)
 		registerRequest(L, c)
 		registerResponse(L, c)
 		registerSession(L, s)
 		registerKVStore(L, db)
 
-		if err := DoCompiledFile(L, luaCache[file]); err != nil {
+		if err := lpool.DoCompiledFile(L, luaCache[file]); err != nil {
 			if lerr := err.(*lua.ApiError); lerr != nil {
 				c.Locals("stacktrace", lerr.StackTrace)
 				return &apiError{msg: lerr.Object.String()}
@@ -280,6 +278,10 @@ func filesHandler(base string) fiber.Handler {
 	}
 }
 
+func registerEnv(L *lua.LState, env *lua.LTable) {
+	L.SetGlobal("env", env)
+}
+
 func registerRequest(L *lua.LState, c *fiber.Ctx) {
 	req := L.NewTable()
 	L.SetGlobal("req", req)
@@ -299,7 +301,7 @@ func registerRequest(L *lua.LState, c *fiber.Ctx) {
 		"id":     c.Locals("requestid").(string),
 		"method": c.Method(),
 		"url":    u.String(),
-		"path":   c.Params("*"),
+		"path":   "/" + c.Params("*"),
 		"body":   string(c.Body()),
 	}
 	for k, v := range dict {
@@ -375,11 +377,11 @@ func registerSession(L *lua.LState, s *session.Session) {
 
 	mt.RawSetString("__index", L.NewFunction(func(L *lua.LState) int {
 		key := L.CheckString(2)
-		value, ok := s.Get(key).(string)
+		value, ok := s.Get(key).(lua.LValue)
 		if !ok {
 			L.Push(lua.LNil)
 		}
-		L.Push(lua.LString(value))
+		L.Push(value)
 		return 1
 	}))
 	mt.RawSetString("__newindex", L.NewFunction(func(L *lua.LState) int {
@@ -388,7 +390,7 @@ func registerSession(L *lua.LState, s *session.Session) {
 			s.Delete(key)
 			return 0
 		}
-		value := L.CheckString(3)
+		value := L.Get(3)
 		s.Set(key, value)
 		return 0
 	}))
@@ -418,7 +420,7 @@ func registerKVStore(L *lua.LState, db *bolt.DB) {
 	mt := L.NewTable()
 	L.SetGlobal("kv", mt)
 	mt.RawSetString("new", L.NewFunction(func(L *lua.LState) int {
-		b := new(Bucket)
+		b := new(lkv.Bucket)
 		b.DB = db
 		b.Name = L.CheckString(1)
 		ud := L.NewUserData()
@@ -429,13 +431,13 @@ func registerKVStore(L *lua.LState, db *bolt.DB) {
 	}))
 	mt.RawSetString("__index", L.NewFunction(func(L *lua.LState) int {
 		key := L.CheckString(2)
-		if fn, ok := lkvExports[key]; ok {
+		if fn, ok := lkv.Exports[key]; ok {
 			L.Push(L.NewFunction(fn))
 			return 1
 		}
-		return lkvGet(L)
+		return lkv.Get(L)
 	}))
-	mt.RawSetString("__newindex", L.NewFunction(lkvPut))
+	mt.RawSetString("__newindex", L.NewFunction(lkv.Put))
 }
 
 func hardStop(termCh chan os.Signal, stopCh chan any) {

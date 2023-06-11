@@ -1,52 +1,50 @@
-package main
+package lpool
 
 import (
 	"bufio"
 	"fmt"
+	"mirai/lib/lextlib"
 	"os"
 	"sync"
-
-	"mirai/modules/libs"
 
 	"github.com/pkg/errors"
 	lua "github.com/yuin/gopher-lua"
 	"github.com/yuin/gopher-lua/parse"
 )
 
-type lStatePool struct {
+type StatePool struct {
 	m     sync.Mutex
-	saved []*lua.LState
+	Saved []*lua.LState
 }
 
-func (pl *lStatePool) Get() *lua.LState {
+func (pl *StatePool) Get() *lua.LState {
 	pl.m.Lock()
 	defer pl.m.Unlock()
-	n := len(pl.saved)
+	n := len(pl.Saved)
 	if n == 0 {
 		return pl.New()
 	}
-	x := pl.saved[n-1]
-	pl.saved = pl.saved[0 : n-1]
+	x := pl.Saved[n-1]
+	pl.Saved = pl.Saved[0 : n-1]
 	return x
 }
 
-func (pl *lStatePool) New() *lua.LState {
+func (pl *StatePool) New() *lua.LState {
 	L := lua.NewState()
 	// setting the L up here.
 	// load scripts, set global variables, share channels, etc...
-	libs.PreloadAll(L)
-	OpenExtendLib(L)
+	lextlib.OpenLib(L)
 	return L
 }
 
-func (pl *lStatePool) Put(L *lua.LState) {
+func (pl *StatePool) Put(L *lua.LState) {
 	pl.m.Lock()
 	defer pl.m.Unlock()
-	pl.saved = append(pl.saved, L)
+	pl.Saved = append(pl.Saved, L)
 }
 
-func (pl *lStatePool) Shutdown() {
-	for _, L := range pl.saved {
+func (pl *StatePool) Shutdown() {
+	for _, L := range pl.Saved {
 		L.Close()
 	}
 }

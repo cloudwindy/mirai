@@ -1,6 +1,8 @@
-package main
+package lkv
 
 import (
+	"mirai/lib/kv"
+
 	lua "github.com/yuin/gopher-lua"
 	bolt "go.etcd.io/bbolt"
 )
@@ -10,14 +12,14 @@ type Bucket struct {
 	Name string
 }
 
-var lkvExports = map[string]lua.LGFunction{
-	"create": lkvCreate,
-	"exists": lkvExists,
-	"keys":   lkvKeys,
-	"drop":   lkvDrop,
+var Exports = map[string]lua.LGFunction{
+	"create": Create,
+	"exists": Exists,
+	"keys":   Keys,
+	"drop":   Drop,
 }
 
-func lkvCheck(L *lua.LState) *Bucket {
+func Check(L *lua.LState) *Bucket {
 	ud := L.CheckUserData(1)
 	if v, ok := ud.Value.(*Bucket); ok {
 		return v
@@ -26,19 +28,19 @@ func lkvCheck(L *lua.LState) *Bucket {
 	return nil
 }
 
-func lkvCreate(L *lua.LState) int {
-	bucket := lkvCheck(L)
-	_, err := kvCreateBucket(bucket.DB, bucket.Name)
+func Create(L *lua.LState) int {
+	bucket := Check(L)
+	_, err := kv.CreateBucket(bucket.DB, bucket.Name)
 	if err != nil {
 		L.RaiseError("create bucket failed: %v", err)
 	}
 	return 0
 }
 
-func lkvGet(L *lua.LState) int {
-	bucket := lkvCheck(L)
+func Get(L *lua.LState) int {
+	bucket := Check(L)
 	key := L.CheckString(2)
-	res, err := kvGet(bucket.DB, bucket.Name, key)
+	res, err := kv.Get(bucket.DB, bucket.Name, key)
 	if err != nil {
 		L.RaiseError("get bucket key failed: %v", err)
 	}
@@ -50,9 +52,9 @@ func lkvGet(L *lua.LState) int {
 	return 1
 }
 
-func lkvExists(L *lua.LState) int {
-	bucket := lkvCheck(L)
-	res, err := kvExists(bucket.DB, bucket.Name)
+func Exists(L *lua.LState) int {
+	bucket := Check(L)
+	res, err := kv.Exists(bucket.DB, bucket.Name)
 	if err != nil {
 		L.RaiseError("get bucket exists failed: %v", err)
 	}
@@ -64,9 +66,9 @@ func lkvExists(L *lua.LState) int {
 	return 1
 }
 
-func lkvKeys(L *lua.LState) int {
-	bucket := lkvCheck(L)
-	res, err := kvKeys(bucket.DB, bucket.Name)
+func Keys(L *lua.LState) int {
+	bucket := Check(L)
+	res, err := kv.Keys(bucket.DB, bucket.Name)
 	if err != nil {
 		L.RaiseError("get bucket keys failed: %v", err)
 	}
@@ -82,25 +84,25 @@ func lkvKeys(L *lua.LState) int {
 	return 1
 }
 
-func lkvPut(L *lua.LState) int {
-	bucket := lkvCheck(L)
+func Put(L *lua.LState) int {
+	bucket := Check(L)
 	key := L.CheckString(2)
 	if L.Get(3) == lua.LNil {
-		if err := kvDel(bucket.DB, bucket.Name, key); err != nil {
+		if err := kv.Del(bucket.DB, bucket.Name, key); err != nil {
 			L.RaiseError("del bucket key failed: %v", err)
 		}
 		return 0
 	}
 	value := L.CheckString(3)
-	if err := kvPut(bucket.DB, bucket.Name, key, value); err != nil {
+	if err := kv.Put(bucket.DB, bucket.Name, key, value); err != nil {
 		L.RaiseError("put bucket key failed: %v", err)
 	}
 	return 0
 }
 
-func lkvDrop(L *lua.LState) int {
-	bucket := lkvCheck(L)
-	if err := kvDrop(bucket.DB, bucket.Name); err != nil {
+func Drop(L *lua.LState) int {
+	bucket := Check(L)
+	if err := kv.Drop(bucket.DB, bucket.Name); err != nil {
 		L.RaiseError("drop bucket failed: %v", err)
 	}
 	return 0

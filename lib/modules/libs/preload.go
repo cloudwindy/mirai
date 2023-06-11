@@ -1,11 +1,11 @@
 package libs
 
 import (
-	"mirai/modules/bcrypt"
-	"mirai/modules/mail"
-	"mirai/modules/pwdchecker"
-	"mirai/modules/url"
-	"mirai/modules/urlpath"
+	"mirai/lib/modules/bcrypt"
+	"mirai/lib/modules/mail"
+	"mirai/lib/modules/pwdchecker"
+	"mirai/lib/modules/url"
+	"mirai/lib/modules/urlpath"
 
 	"github.com/vadv/gopher-lua-libs/base64"
 	"github.com/vadv/gopher-lua-libs/chef"

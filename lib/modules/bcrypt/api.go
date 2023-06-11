@@ -27,8 +27,7 @@ func Compare(L *lua.LState) int {
 			L.Push(lua.LFalse)
 			return 1
 		}
-		L.Push(lua.LNil)
-		L.Push(lua.LString(err.Error()))
+		L.RaiseError("%v", err)
 		return 0
 	}
 	L.Push(lua.LTrue)

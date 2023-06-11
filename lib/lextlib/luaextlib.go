@@ -1,18 +1,21 @@
-package main
+package lextlib
 
 import (
+	"mirai/lib/modules/libs"
+
 	"github.com/vadv/gopher-lua-libs/goos"
 	"github.com/vadv/gopher-lua-libs/ioutil"
 	"github.com/vadv/gopher-lua-libs/strings"
 	lua "github.com/yuin/gopher-lua"
 )
 
-func OpenExtendLib(L *lua.LState) {
-	modString := L.RegisterModule("string", nil).(*lua.LTable)
+func OpenLib(L *lua.LState) {
+	libs.PreloadAll(L)
+	modString := L.RegisterModule(lua.StringLibName, nil).(*lua.LTable)
 	L.SetFuncs(modString, stringExports)
-	modIo := L.RegisterModule("io", nil).(*lua.LTable)
+	modIo := L.RegisterModule(lua.IoLibName, nil).(*lua.LTable)
 	L.SetFuncs(modIo, ioExports)
-	modOs := L.RegisterModule("os", nil).(*lua.LTable)
+	modOs := L.RegisterModule(lua.OsLibName, nil).(*lua.LTable)
 	L.SetFuncs(modOs, osExports)
 }
 

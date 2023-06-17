@@ -1,11 +1,12 @@
-package lpool
+package luapool
 
 import (
 	"bufio"
 	"fmt"
-	"mirai/lib/lextlib"
 	"os"
 	"sync"
+
+	"mirai/pkg/luaextlib"
 
 	"github.com/pkg/errors"
 	lua "github.com/yuin/gopher-lua"
@@ -33,7 +34,7 @@ func (pl *StatePool) New() *lua.LState {
 	L := lua.NewState()
 	// setting the L up here.
 	// load scripts, set global variables, share channels, etc...
-	lextlib.OpenLib(L)
+	luaextlib.OpenLib(L)
 	return L
 }
 

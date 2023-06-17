@@ -11,8 +11,9 @@ import (
 	"syscall"
 	"time"
 
-	"mirai/lib/lkv"
-	"mirai/lib/lpool"
+	"mirai/pkg/config"
+	"mirai/pkg/luapool"
+	"mirai/pkg/luasql"
 
 	"github.com/fatih/color"
 	"github.com/gofiber/fiber/v2"
@@ -29,14 +30,21 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/session"
 	sbolt "github.com/gofiber/storage/bbolt"
 	"github.com/pkg/errors"
+	"github.com/yuin/gluamapper"
 	lua "github.com/yuin/gopher-lua"
 	"github.com/zs5460/art"
-	bolt "go.etcd.io/bbolt"
+	luar "layeh.com/gopher-luar"
 )
 
 const (
 	Version    = "1.0"
 	ConfigFile = "./config.lua"
+)
+
+var (
+	succ = color.New(color.FgGreen)
+	info = color.New(color.FgBlue)
+	warn = color.New(color.FgHiYellow)
 )
 
 func init() {
@@ -59,7 +67,7 @@ func main() {
 	fmt.Println(" Mirai Server " + Version + " with " + lua.LuaVersion)
 	fmt.Println(" Fiber " + fiber.Version)
 
-	c := GetConfig(ConfigFile)
+	c := config.Get(ConfigFile)
 	defer luaPool.Shutdown()
 
 	app := fiber.New(fiber.Config{
@@ -80,13 +88,8 @@ func main() {
 	app.Use(compress.New())
 	app.Use(pprof.New())
 
-	db, err := bolt.Open("db/data.db", 0o666, &bolt.Options{Timeout: 1 * time.Second})
-	if err != nil {
-		panic(err)
-	}
-
 	storage := sbolt.New(sbolt.Config{
-		Database: "db/fiber.db",
+		Database: path.Join(c.DataDir, "fiber.db"),
 	})
 	store := session.New(session.Config{
 		Storage: storage,
@@ -101,12 +104,13 @@ func main() {
 		EnableStackTrace: true,
 	}))
 	api.Use(PrintTimer("exec", "Script Execution"))
-	api.All("/v1/:scriptname?/*", luaHandler(c.ScriptDir, c.env, db, store))
+	api.All("/v1/:scriptname?/*", luaHandler(c.ScriptDir, c.Env, c.DB, store))
 
 	admin := api.Group("/admin")
 	if c.Editing {
-		fmt.Printf(" Editing: %s\n", color.GreenString("Enabled"))
 		admin.All("/files/:path?", filesHandler(c.ScriptDir))
+		fmt.Print(" Editing: ")
+		warn.Println("Allowed")
 	}
 
 	app.Use(etag.New())
@@ -116,19 +120,23 @@ func main() {
 		CacheControl: false,
 		Expiration:   72 * time.Hour,
 	}))
-	// app.Use(filesystem.New(filesystem.Config{
-	// 	Root:       http.FS(BuildFS),
-	// 	PathPrefix: "build",
-	// }))
-	app.Static("/", c.RootDir, fiber.Static{
-		ByteRange: true,
-	})
-	app.Get("*", func(c *fiber.Ctx) error {
-		c.Path("/")
-		return c.RestartRouting()
-	})
+	if c.RootDir != "" {
+		app.Static("/", c.RootDir, fiber.Static{
+			ByteRange: true,
+		})
+		app.Get("*", func(c *fiber.Ctx) error {
+			c.Path("/")
+			return c.RestartRouting()
+		})
+		fmt.Print(" Static: ")
+		succ.Print("Serving")
+		fmt.Printf(" from ")
+		info.Println(c.RootDir)
+	}
 
-	fmt.Printf("\n Listening at %s\n\n", color.BlueString(c.Listen))
+	fmt.Println()
+	fmt.Print(" Listening at ")
+	info.Println(c.Listen)
 	if err := app.Listen(c.Listen); err != nil {
 		panic(errors.Wrap(err, "无法启动 HTTP 服务器"))
 	}
@@ -180,12 +188,12 @@ func PrintTimer(name string, desc string, started ...bool) fiber.Handler {
 var (
 	filesStat = make(map[string]fs.FileInfo)
 	luaCache  = make(map[string]*lua.FunctionProto)
-	luaPool   = &lpool.StatePool{
+	luaPool   = &luapool.StatePool{
 		Saved: make([]*lua.LState, 0, 4),
 	}
 )
 
-func luaHandler(base string, env *lua.LTable, db *bolt.DB, store *session.Store) fiber.Handler {
+func luaHandler(base string, env *lua.LTable, db config.DB, store *session.Store) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		file := c.Params("scriptname", "index") + ".lua"
 		file = path.Join(base, file)
@@ -200,7 +208,7 @@ func luaHandler(base string, env *lua.LTable, db *bolt.DB, store *session.Store)
 
 		prev, ok := filesStat[file]
 		if !ok || stat.Size() != prev.Size() || stat.ModTime() != prev.ModTime() {
-			proto, err := lpool.CompileLua(file)
+			proto, err := luapool.CompileLua(file)
 			if err != nil {
 				return err
 			}
@@ -209,7 +217,6 @@ func luaHandler(base string, env *lua.LTable, db *bolt.DB, store *session.Store)
 		}
 		L := luaPool.Get()
 		defer luaPool.Put(L)
-
 		s, err := store.Get(c)
 		if err != nil {
 			return err
@@ -219,9 +226,9 @@ func luaHandler(base string, env *lua.LTable, db *bolt.DB, store *session.Store)
 		registerRequest(L, c)
 		registerResponse(L, c)
 		registerSession(L, s)
-		registerKVStore(L, db)
+		registerDB(L, db)
 
-		if err := lpool.DoCompiledFile(L, luaCache[file]); err != nil {
+		if err := luapool.DoCompiledFile(L, luaCache[file]); err != nil {
 			if lerr := err.(*lua.ApiError); lerr != nil {
 				c.Locals("stacktrace", lerr.StackTrace)
 				return &apiError{msg: lerr.Object.String()}
@@ -374,14 +381,10 @@ func registerSession(L *lua.LState, s *session.Session) {
 	L.SetGlobal("sess", sess)
 	mt := L.NewTable()
 	L.SetMetatable(sess, mt)
-
 	mt.RawSetString("__index", L.NewFunction(func(L *lua.LState) int {
 		key := L.CheckString(2)
-		value, ok := s.Get(key).(lua.LValue)
-		if !ok {
-			L.Push(lua.LNil)
-		}
-		L.Push(value)
+		value := s.Get(key)
+		L.Push(luar.New(L, value))
 		return 1
 	}))
 	mt.RawSetString("__newindex", L.NewFunction(func(L *lua.LState) int {
@@ -391,7 +394,10 @@ func registerSession(L *lua.LState, s *session.Session) {
 			return 0
 		}
 		value := L.Get(3)
-		s.Set(key, value)
+		goval := gluamapper.ToGoValue(value, gluamapper.Option{
+			NameFunc: func(s string) string { return s },
+		})
+		s.Set(key, goval)
 		return 0
 	}))
 	sess.RawSetString("keys", L.NewFunction(func(L *lua.LState) int {
@@ -403,6 +409,10 @@ func registerSession(L *lua.LState, s *session.Session) {
 		return 1
 	}))
 	sess.RawSetString("save", L.NewFunction(func(L *lua.LState) int {
+		t := L.ToNumber(1)
+		if t != 0 {
+			s.SetExpiry(time.Duration(t) * time.Hour)
+		}
 		if err := s.Save(); err != nil {
 			L.RaiseError("session save failed: %v", err)
 		}
@@ -416,28 +426,12 @@ func registerSession(L *lua.LState, s *session.Session) {
 	}))
 }
 
-func registerKVStore(L *lua.LState, db *bolt.DB) {
-	mt := L.NewTable()
-	L.SetGlobal("kv", mt)
-	mt.RawSetString("new", L.NewFunction(func(L *lua.LState) int {
-		b := new(lkv.Bucket)
-		b.DB = db
-		b.Name = L.CheckString(1)
-		ud := L.NewUserData()
-		ud.Value = b
-		L.SetMetatable(ud, mt)
-		L.Push(ud)
-		return 1
-	}))
-	mt.RawSetString("__index", L.NewFunction(func(L *lua.LState) int {
-		key := L.CheckString(2)
-		if fn, ok := lkv.Exports[key]; ok {
-			L.Push(L.NewFunction(fn))
-			return 1
-		}
-		return lkv.Get(L)
-	}))
-	mt.RawSetString("__newindex", L.NewFunction(lkv.Put))
+func registerDB(L *lua.LState, c config.DB) {
+	db, err := luasql.Open(L, c.Driver, c.Conn)
+	if err != nil {
+		L.RaiseError("db open failed: %v", err)
+	}
+	L.SetGlobal("db", db)
 }
 
 func hardStop(termCh chan os.Signal, stopCh chan any) {

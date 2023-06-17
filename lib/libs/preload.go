@@ -1,11 +1,11 @@
 package libs
 
 import (
-	"mirai/lib/modules/bcrypt"
-	"mirai/lib/modules/mail"
-	"mirai/lib/modules/pwdchecker"
-	"mirai/lib/modules/url"
-	"mirai/lib/modules/urlpath"
+	"mirai/lib/bcrypt"
+	"mirai/lib/mail"
+	"mirai/lib/pwdchecker"
+	"mirai/lib/url"
+	"mirai/lib/urlpath"
 
 	"github.com/vadv/gopher-lua-libs/base64"
 	"github.com/vadv/gopher-lua-libs/chef"
@@ -18,9 +18,9 @@ import (
 	"github.com/vadv/gopher-lua-libs/json"
 	"github.com/vadv/gopher-lua-libs/log"
 	"github.com/vadv/gopher-lua-libs/pb"
+	"github.com/vadv/gopher-lua-libs/plugin"
 	"github.com/vadv/gopher-lua-libs/regexp"
 	"github.com/vadv/gopher-lua-libs/runtime"
-	"github.com/vadv/gopher-lua-libs/stats"
 	"github.com/vadv/gopher-lua-libs/storage"
 	"github.com/vadv/gopher-lua-libs/time"
 	lua "github.com/yuin/gopher-lua"
@@ -43,8 +43,8 @@ func PreloadAll(L *lua.LState) {
 	json.Preload(L)
 	log.Preload(L)
 	pb.Preload(L)
+	plugin.Preload(L)
 	runtime.Preload(L)
-	stats.Preload(L)
 	storage.Preload(L)
 	time.Preload(L)
 	L.PreloadModule("http", http_client.Loader)

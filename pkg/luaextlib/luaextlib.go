@@ -1,7 +1,7 @@
-package lextlib
+package luaextlib
 
 import (
-	"mirai/lib/modules/libs"
+	"mirai/lib/libs"
 
 	"github.com/vadv/gopher-lua-libs/goos"
 	"github.com/vadv/gopher-lua-libs/ioutil"

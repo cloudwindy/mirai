@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"path"
+	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
@@ -48,7 +49,7 @@ var (
 )
 
 func init() {
-	lua.LuaPathDefault += ";./lib/?.lua;./lib/?/init.lua"
+	lua.LuaPathDefault += ";./?.lua;./?/init.lua"
 }
 
 func main() {
@@ -108,7 +109,7 @@ func main() {
 
 	admin := api.Group("/admin")
 	if c.Editing {
-		admin.All("/files/:path?", filesHandler(c.ScriptDir))
+		admin.All("/files/*", filesHandler(c.ScriptDir))
 		fmt.Print(" Editing: ")
 		warn.Println("Allowed")
 	}
@@ -252,17 +253,30 @@ func (e *apiError) Error() string {
 	return e.msg
 }
 
+func ensureDir(fileName string) {
+	dirName := filepath.Dir(fileName)
+	if _, serr := os.Stat(dirName); serr != nil {
+		merr := os.MkdirAll(dirName, os.ModePerm)
+		if merr != nil {
+			panic(merr)
+		}
+	}
+}
+
 func filesHandler(base string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		file := c.Params("path")
+		file := c.Params("*")
 		if file == "" {
-			dir, err := os.ReadDir(base)
+			names := make([]string, 0)
+			err := filepath.WalkDir(base, func(path string, d fs.DirEntry, err error) error {
+				if !d.IsDir() {
+					path = strings.TrimPrefix(path, base+"/")
+					names = append(names, path)
+				}
+				return err
+			})
 			if err != nil {
 				return err
-			}
-			names := make([]string, 0)
-			for _, file := range dir {
-				names = append(names, file.Name())
 			}
 			return c.JSON(names)
 		}
@@ -271,6 +285,7 @@ func filesHandler(base string) fiber.Handler {
 		case "GET":
 			return c.SendFile(file)
 		case "PUT":
+			ensureDir(file)
 			if err := os.WriteFile(file, c.Body(), 0o644); err != nil {
 				return err
 			}

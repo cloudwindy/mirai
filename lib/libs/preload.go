@@ -8,7 +8,6 @@ import (
 	"mirai/lib/urlpath"
 
 	"github.com/vadv/gopher-lua-libs/base64"
-	"github.com/vadv/gopher-lua-libs/chef"
 	"github.com/vadv/gopher-lua-libs/cmd"
 	"github.com/vadv/gopher-lua-libs/crypto"
 	"github.com/vadv/gopher-lua-libs/filepath"
@@ -17,8 +16,6 @@ import (
 	"github.com/vadv/gopher-lua-libs/inspect"
 	"github.com/vadv/gopher-lua-libs/json"
 	"github.com/vadv/gopher-lua-libs/log"
-	"github.com/vadv/gopher-lua-libs/pb"
-	"github.com/vadv/gopher-lua-libs/plugin"
 	"github.com/vadv/gopher-lua-libs/regexp"
 	"github.com/vadv/gopher-lua-libs/runtime"
 	"github.com/vadv/gopher-lua-libs/storage"
@@ -34,7 +31,6 @@ func PreloadAll(L *lua.LState) {
 	urlpath.Preload(L)
 
 	base64.Preload(L)
-	chef.Preload(L)
 	cmd.Preload(L)
 	crypto.Preload(L)
 	filepath.Preload(L)
@@ -42,8 +38,6 @@ func PreloadAll(L *lua.LState) {
 	inspect.Preload(L)
 	json.Preload(L)
 	log.Preload(L)
-	pb.Preload(L)
-	plugin.Preload(L)
 	runtime.Preload(L)
 	storage.Preload(L)
 	time.Preload(L)

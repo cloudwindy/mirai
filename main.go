@@ -8,13 +8,13 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
 
 	"mirai/pkg/config"
-	"mirai/pkg/luapool"
-	"mirai/pkg/luasql"
+	"mirai/pkg/leapp"
+	"mirai/pkg/ledb"
+	"mirai/pkg/luaengine"
 
 	"github.com/fatih/color"
 	"github.com/gofiber/fiber/v2"
@@ -31,45 +31,77 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/session"
 	sbolt "github.com/gofiber/storage/bbolt"
 	"github.com/pkg/errors"
-	"github.com/yuin/gluamapper"
-	lua "github.com/yuin/gopher-lua"
+	"github.com/urfave/cli/v2"
 	"github.com/zs5460/art"
-	luar "layeh.com/gopher-luar"
 )
 
+// Package info
 const (
-	Version    = "1.0"
-	ConfigFile = "./config.lua"
+	Version = "1.0"
 )
 
+// Color helper functions
 var (
 	succ = color.New(color.FgGreen)
 	info = color.New(color.FgBlue)
 	warn = color.New(color.FgHiYellow)
 )
 
-func init() {
-	lua.LuaPathDefault += ";./?.lua;./?/init.lua"
-}
-
 func main() {
 	// 设置退出信号
 	term := make(chan os.Signal, 1)
 	signal.Notify(term, os.Interrupt, syscall.SIGTERM)
 	defer signal.Stop(term)
-	wg := new(sync.WaitGroup)
-	defer wg.Wait()
 
 	// 优雅退出
 	done := make(chan any, 1)
 	go hardStop(term, done)
 
-	color.Blue(art.String("Mirai Project"))
-	fmt.Println(" Mirai Server " + Version + " with " + lua.LuaVersion)
-	fmt.Println(" Fiber " + fiber.Version)
+	app := &cli.App{
+		Name:                   "mirai",
+		Usage:                  "Server for the Mirai Project",
+		Version:                Version,
+		DefaultCommand:         "run",
+		UseShortOptionHandling: true,
+		Flags: []cli.Flag{
+			&cli.PathFlag{
+				Name:    "proj",
+				Aliases: []string{"p"},
+				Usage:   "project directory",
+				Value:   ".",
+			},
+		},
+		Commands: []*cli.Command{
+			{
+				Name:  "run",
+				Usage: "Run the server (default)",
+				Flags: []cli.Flag{
+					&cli.BoolFlag{
+						Name:    "edit",
+						Aliases: []string{"e"},
+						Usage:   "allow editing",
+					},
+				},
+				Action: run,
+			},
+		},
+	}
 
-	c := config.Get(ConfigFile)
-	defer luaPool.Shutdown()
+	if err := app.Run(os.Args); err != nil {
+		color.Red("%v", err)
+	}
+}
+
+func run(ctx *cli.Context) error {
+	c, err := config.Parse(ctx.Path("proj"))
+	if err != nil {
+		return err
+	}
+
+	color.Blue(art.String("Mirai Project"))
+	fmt.Println(" Mirai Server " + Version + " with " + luaengine.LuaVersion)
+	fmt.Println(" Fiber " + fiber.Version)
+	fmt.Println()
 
 	app := fiber.New(fiber.Config{
 		ServerHeader:          "Mirai Server",
@@ -90,7 +122,7 @@ func main() {
 	app.Use(pprof.New())
 
 	storage := sbolt.New(sbolt.Config{
-		Database: path.Join(c.DataDir, "fiber.db"),
+		Database: path.Join(c.Data, "fiber.db"),
 	})
 	store := session.New(session.Config{
 		Storage: storage,
@@ -105,42 +137,48 @@ func main() {
 		EnableStackTrace: true,
 	}))
 	api.Use(PrintTimer("exec", "Script Execution"))
-	api.All("/v1/:scriptname?/*", luaHandler(c.ScriptDir, c.Env, c.DB, store))
 
 	admin := api.Group("/admin")
 	if c.Editing {
-		admin.All("/files/*", filesHandler(c.ScriptDir))
+		admin.All("/files/*", filesHandler(c.Index))
 		fmt.Print(" Editing: ")
 		warn.Println("Allowed")
 	}
 
-	app.Use(etag.New())
-	app.Use(cache.New(cache.Config{
-		Storage:      storage,
-		CacheHeader:  "Cache-Status",
-		CacheControl: false,
-		Expiration:   72 * time.Hour,
-	}))
-	if c.RootDir != "" {
-		app.Static("/", c.RootDir, fiber.Static{
-			ByteRange: true,
-		})
-		app.Get("*", func(c *fiber.Ctx) error {
-			c.Path("/")
-			return c.RestartRouting()
-		})
-		fmt.Print(" Static: ")
-		succ.Print("Serving")
-		fmt.Printf(" from ")
-		info.Println(c.RootDir)
+	listen := func(child *fiber.App) error {
+		api.Mount("/", child)
+
+		app.Use(etag.New())
+		app.Use(cache.New(cache.Config{
+			Storage:      storage,
+			CacheHeader:  "Cache-Status",
+			CacheControl: false,
+			Expiration:   72 * time.Hour,
+		}))
+		if c.Root != "" {
+			app.Static("/", c.Root, fiber.Static{
+				ByteRange: true,
+			})
+			app.Get("*", func(c *fiber.Ctx) error {
+				c.Path("/")
+				return c.RestartRouting()
+			})
+		}
+
+		fmt.Println()
+		fmt.Print(" Listening at ")
+		info.Println(c.Listen)
+		return errors.Wrap(app.Listen(c.Listen), "http start")
 	}
 
-	fmt.Println()
-	fmt.Print(" Listening at ")
-	info.Println(c.Listen)
-	if err := app.Listen(c.Listen); err != nil {
-		panic(errors.Wrap(err, "无法启动 HTTP 服务器"))
+	engine := luaengine.New(c.Index, c.Env)
+	engine.Register("app", leapp.New(store, listen))
+	if err := engine.Run(); err != nil {
+		return err
 	}
+	engine.Register("db", ledb.New(c.DB))
+
+	return nil
 }
 
 func StartTimer() fiber.Handler {
@@ -185,84 +223,6 @@ func PrintTimer(name string, desc string, started ...bool) fiber.Handler {
 	}
 }
 
-// Global LState pool
-var (
-	filesStat = make(map[string]fs.FileInfo)
-	luaCache  = make(map[string]*lua.FunctionProto)
-	luaPool   = &luapool.StatePool{
-		Saved: make([]*lua.LState, 0, 4),
-	}
-)
-
-func luaHandler(base string, env *lua.LTable, db config.DB, store *session.Store) fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		file := c.Params("scriptname", "index") + ".lua"
-		file = path.Join(base, file)
-
-		stat, err := os.Stat(file)
-		if os.IsNotExist(err) {
-			return fiber.ErrNotFound
-		}
-		if err != nil {
-			return err
-		}
-
-		prev, ok := filesStat[file]
-		if !ok || stat.Size() != prev.Size() || stat.ModTime() != prev.ModTime() {
-			proto, err := luapool.CompileLua(file)
-			if err != nil {
-				return err
-			}
-			luaCache[file] = proto
-			filesStat[file] = stat
-		}
-		L := luaPool.Get()
-		defer luaPool.Put(L)
-		s, err := store.Get(c)
-		if err != nil {
-			return err
-		}
-
-		registerEnv(L, env)
-		registerRequest(L, c)
-		registerResponse(L, c)
-		registerSession(L, s)
-		registerDB(L, db)
-
-		if err := luapool.DoCompiledFile(L, luaCache[file]); err != nil {
-			if lerr := err.(*lua.ApiError); lerr != nil {
-				c.Locals("stacktrace", lerr.StackTrace)
-				return &apiError{msg: lerr.Object.String()}
-			}
-			return err
-		}
-
-		return nil
-	}
-}
-
-func LogTime(t time.Time) {
-	fmt.Printf("%.02fms\n", float64(time.Since(t).Microseconds())/1000)
-}
-
-type apiError struct {
-	msg string
-}
-
-func (e *apiError) Error() string {
-	return e.msg
-}
-
-func ensureDir(fileName string) {
-	dirName := filepath.Dir(fileName)
-	if _, serr := os.Stat(dirName); serr != nil {
-		merr := os.MkdirAll(dirName, os.ModePerm)
-		if merr != nil {
-			panic(merr)
-		}
-	}
-}
-
 func filesHandler(base string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		file := c.Params("*")
@@ -300,153 +260,15 @@ func filesHandler(base string) fiber.Handler {
 	}
 }
 
-func registerEnv(L *lua.LState, env *lua.LTable) {
-	L.SetGlobal("env", env)
-}
-
-func registerRequest(L *lua.LState, c *fiber.Ctx) {
-	req := L.NewTable()
-	L.SetGlobal("req", req)
-
-	u := new(strings.Builder)
-	u.WriteString(c.Protocol())
-	u.WriteString("://")
-	u.WriteString(c.Hostname())
-	u.WriteString(c.Path())
-	q := c.Context().QueryArgs()
-	if q.Len() > 0 {
-		u.WriteByte('?')
-		u.Write(q.QueryString())
+// Create directories recursively
+func ensureDir(fileName string) {
+	dirName := filepath.Dir(fileName)
+	if _, serr := os.Stat(dirName); serr != nil {
+		merr := os.MkdirAll(dirName, os.ModePerm)
+		if merr != nil {
+			panic(merr)
+		}
 	}
-
-	dict := map[string]string{
-		"id":     c.Locals("requestid").(string),
-		"method": c.Method(),
-		"url":    u.String(),
-		"path":   "/" + c.Params("*"),
-		"body":   string(c.Body()),
-	}
-	for k, v := range dict {
-		req.RawSetString(k, lua.LString(v))
-	}
-	query := L.NewTable()
-	q.VisitAll(func(key, value []byte) {
-		query.RawSetString(string(key), lua.LString(value))
-	})
-	req.RawSetString("query", query)
-
-	headers := L.NewTable()
-	req.RawSetString("headers", headers)
-	for k, v := range c.GetReqHeaders() {
-		headers.RawSetString(k, lua.LString(v))
-	}
-}
-
-func registerResponse(L *lua.LState, c *fiber.Ctx) {
-	resp := L.NewTable()
-	L.SetGlobal("resp", resp)
-
-	headers := L.NewTable()
-	resp.RawSetString("headers", headers)
-	mtHeaders := L.NewTable()
-	mtHeaders.RawSetString("__setindex", L.NewFunction(func(L *lua.LState) int {
-		c.Set(L.CheckString(2), L.ToString(3))
-		return 0
-	}))
-	L.SetMetatable(headers, mtHeaders)
-
-	resp.RawSetString("type", L.NewFunction(func(L *lua.LState) int {
-		if L.GetTop() > 1 {
-			c.Type(L.CheckString(1), L.CheckString(2))
-		} else {
-			c.Type(L.CheckString(1))
-		}
-		return 0
-	}))
-	resp.RawSetString("send", L.NewFunction(func(L *lua.LState) int {
-		status := 200
-		body := ""
-		if L.GetTop() > 1 {
-			status = L.CheckInt(1)
-			body = L.CheckString(2)
-		} else {
-			body = L.CheckString(1)
-		}
-		if err := c.Status(status).SendString(body); err != nil {
-			L.RaiseError("http send failed: %v", err)
-		}
-		return 0
-	}))
-	resp.RawSetString("redir", L.NewFunction(func(L *lua.LState) int {
-		status := 302
-		loc := ""
-		if L.GetTop() > 1 {
-			status = L.CheckInt(1)
-			loc = L.CheckString(2)
-		} else {
-			loc = L.CheckString(1)
-		}
-		c.Status(status).Location(loc)
-		return 0
-	}))
-}
-
-func registerSession(L *lua.LState, s *session.Session) {
-	sess := L.NewTable()
-	L.SetGlobal("sess", sess)
-	mt := L.NewTable()
-	L.SetMetatable(sess, mt)
-	mt.RawSetString("__index", L.NewFunction(func(L *lua.LState) int {
-		key := L.CheckString(2)
-		value := s.Get(key)
-		L.Push(luar.New(L, value))
-		return 1
-	}))
-	mt.RawSetString("__newindex", L.NewFunction(func(L *lua.LState) int {
-		key := L.CheckString(2)
-		if L.Get(3) == lua.LNil {
-			s.Delete(key)
-			return 0
-		}
-		value := L.Get(3)
-		goval := gluamapper.ToGoValue(value, gluamapper.Option{
-			NameFunc: func(s string) string { return s },
-		})
-		s.Set(key, goval)
-		return 0
-	}))
-	sess.RawSetString("keys", L.NewFunction(func(L *lua.LState) int {
-		k := L.NewTable()
-		for _, key := range s.Keys() {
-			k.Append(lua.LString(key))
-		}
-		L.Push(k)
-		return 1
-	}))
-	sess.RawSetString("save", L.NewFunction(func(L *lua.LState) int {
-		t := L.ToNumber(1)
-		if t != 0 {
-			s.SetExpiry(time.Duration(t) * time.Hour)
-		}
-		if err := s.Save(); err != nil {
-			L.RaiseError("session save failed: %v", err)
-		}
-		return 0
-	}))
-	sess.RawSetString("clear", L.NewFunction(func(L *lua.LState) int {
-		if err := s.Destroy(); err != nil {
-			L.RaiseError("session clear failed: %v", err)
-		}
-		return 0
-	}))
-}
-
-func registerDB(L *lua.LState, c config.DB) {
-	db, err := luasql.Open(L, c.Driver, c.Conn)
-	if err != nil {
-		L.RaiseError("db open failed: %v", err)
-	}
-	L.SetGlobal("db", db)
 }
 
 func hardStop(termCh chan os.Signal, stopCh chan any) {
@@ -457,4 +279,8 @@ func hardStop(termCh chan os.Signal, stopCh chan any) {
 	case <-stopCh:
 		return
 	}
+}
+
+func LogTime(t time.Time) {
+	fmt.Printf("%.02fms\n", float64(time.Since(t).Microseconds())/1000)
 }

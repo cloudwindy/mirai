@@ -1,4 +1,4 @@
-package luasql
+package ledb
 
 import (
 	"errors"

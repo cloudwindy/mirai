@@ -1,14 +1,16 @@
 package config
 
 import (
-	"mirai/pkg/dir"
+	"io"
+	"os"
+
 	"mirai/pkg/luaextlib"
 
 	"github.com/yuin/gluamapper"
 	lua "github.com/yuin/gopher-lua"
 )
 
-var DefaultIndex = "project.lua"
+var ProjectFileName = "project.lua"
 
 type Config struct {
 	Listen  string
@@ -17,7 +19,7 @@ type Config struct {
 	Root    string
 	Index   string
 	DB      DB
-	Env     *lua.LTable `gluamapper:"-"`
+	Env     *lua.LTable `lua:"-"`
 }
 
 type DB struct {
@@ -25,24 +27,29 @@ type DB struct {
 	Conn   string
 }
 
-func Parse(configFile string) (c Config, err error) {
+func Parse(projectDir string) (c Config, err error) {
 	L := lua.NewState()
 	defer L.Close()
 	luaextlib.OpenLib(L)
 
-	file, isDir, err := dir.Index(configFile, DefaultIndex)
+	if err = os.Chdir(projectDir); err != nil {
+		return
+	}
+	file, err := os.Open(ProjectFileName)
 	if err != nil {
 		return
 	}
-	if err = L.DoFile(file); err != nil {
+	str, err := io.ReadAll(file)
+	if err != nil {
+		return
+	}
+	if err = L.DoString(string(str)); err != nil {
 		return
 	}
 	t := L.CheckTable(1)
-	if err = gluamapper.Map(t, &c); err != nil {
+	mapper := gluamapper.NewMapper(gluamapper.Option{TagName: "lua"})
+	if err = mapper.Map(t, &c); err != nil {
 		return
-	}
-	if c.Index == "" && isDir {
-		c.Index = configFile
 	}
 	if env, ok := t.RawGetString("env").(*lua.LTable); ok {
 		c.Env = env

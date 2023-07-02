@@ -13,6 +13,7 @@ import (
 
 	"mirai/pkg/config"
 	"mirai/pkg/leapp"
+	"mirai/pkg/lecli"
 	"mirai/pkg/ledb"
 	"mirai/pkg/luaengine"
 
@@ -61,7 +62,7 @@ func main() {
 		Name:                   "mirai",
 		Usage:                  "Server for the Mirai Project",
 		Version:                Version,
-		DefaultCommand:         "run",
+		DefaultCommand:         "start",
 		UseShortOptionHandling: true,
 		Flags: []cli.Flag{
 			&cli.PathFlag{
@@ -73,8 +74,8 @@ func main() {
 		},
 		Commands: []*cli.Command{
 			{
-				Name:  "run",
-				Usage: "Run the server (default)",
+				Name:  "start",
+				Usage: "start the server (default)",
 				Flags: []cli.Flag{
 					&cli.BoolFlag{
 						Name:    "edit",
@@ -82,7 +83,11 @@ func main() {
 						Usage:   "allow editing",
 					},
 				},
-				Action: run,
+				Action: start,
+			},
+			{
+				Name: "run",
+				Usage: "run command",
 			},
 		},
 	}
@@ -92,7 +97,7 @@ func main() {
 	}
 }
 
-func run(ctx *cli.Context) error {
+func start(ctx *cli.Context) error {
 	c, err := config.Parse(ctx.Path("proj"))
 	if err != nil {
 		return err
@@ -146,7 +151,7 @@ func run(ctx *cli.Context) error {
 	}
 
 	listen := func(child *fiber.App) error {
-		api.Mount("/", child)
+		api.Mount("/", child).Name("app")
 
 		app.Use(etag.New())
 		app.Use(cache.New(cache.Config{
@@ -177,6 +182,7 @@ func run(ctx *cli.Context) error {
 		return err
 	}
 	engine.Register("db", ledb.New(c.DB))
+	engine.Register("cli", lecli.New())
 
 	return nil
 }

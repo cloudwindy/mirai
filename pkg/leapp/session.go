@@ -10,66 +10,93 @@ import (
 	luar "layeh.com/gopher-luar"
 )
 
-func NewSession(L *lua.LState, s lazysess.Session) lua.LValue {
-	sess := L.NewTable()
-
-	funcs, mtFuncs := sessionFuncs(s)
-	L.SetFuncs(sess, funcs)
-
-	mt := L.NewTable()
-	L.SetMetatable(sess, mt)
-	L.SetFuncs(mt, mtFuncs)
-
-	return sess
+type Session struct {
+	lazysess.Session
+	index map[string]lua.LValue
 }
 
-func sessionFuncs(s lazysess.Session) (map[string]lua.LGFunction, map[string]lua.LGFunction) {
-	return map[string]lua.LGFunction{
-			// normal fields
-			"keys": func(L *lua.LState) int {
-				k := L.NewTable()
-				for _, key := range s.Keys() {
-					k.Append(lua.LString(key))
-				}
-				L.Push(k)
-				return 1
-			},
-			"save": func(L *lua.LState) int {
-				t := L.ToNumber(1)
-				if t != 0 {
-					s.SetExpiry(time.Duration(t) * time.Hour)
-				}
-				if err := s.Save(); err != nil {
-					L.RaiseError("session save failed: %v", err)
-				}
-				return 0
-			},
-			"clear": func(L *lua.LState) int {
-				if err := s.Destroy(); err != nil {
-					L.RaiseError("session clear failed: %v", err)
-				}
-				return 0
-			},
-		}, map[string]lua.LGFunction{
-			// metatable
-			"__index": func(L *lua.LState) int {
-				key := L.CheckString(2)
-				value := s.Get(key)
-				L.Push(luar.New(L, value))
-				return 1
-			},
-			"__newindex": func(L *lua.LState) int {
-				key := L.CheckString(2)
-				if L.Get(3) == lua.LNil {
-					s.Delete(key)
-					return 0
-				}
-				value := L.Get(3)
-				goval := gluamapper.ToGoValue(value, gluamapper.Option{
-					NameFunc: func(s string) string { return s },
-				})
-				s.Set(key, goval)
-				return 0
-			},
-		}
+func NewSession(L *lua.LState, s lazysess.Session) lua.LValue {
+	sess := new(Session)
+	sess.Session = s
+	index := map[string]lua.LGFunction{
+		"keys":  sessKeys,
+		"save":  sessSave,
+		"clear": sessClear,
+	}
+
+	sess.index = make(map[string]lua.LValue)
+	for i, v := range index {
+		sess.index[i] = L.NewFunction(v)
+	}
+
+	indexFunc := L.NewFunction(sessIndex)
+	newIndex := L.NewFunction(sessNewIndex)
+
+	return objProxy(L, sess, indexFunc, newIndex)
+}
+
+func sessIndex(L *lua.LState) int {
+	s := checkSess(L, 1)
+	key := L.CheckString(2)
+	if v, ok := s.index[key]; ok {
+		L.Push(v)
+	} else {
+		value := s.Get(key)
+		L.Push(luar.New(L, value))
+	}
+	return 1
+}
+
+func sessNewIndex(L *lua.LState) int {
+	s := checkSess(L, 1)
+	key := L.CheckString(2)
+	if L.Get(3) == lua.LNil {
+		s.Delete(key)
+		return 0
+	}
+	value := L.Get(4)
+	goval := gluamapper.ToGoValue(value, gluamapper.Option{
+		NameFunc: func(s string) string { return s },
+	})
+	s.Set(key, goval)
+	return 0
+}
+
+func sessKeys(L *lua.LState) int {
+	s := checkSess(L, 1)
+	k := L.NewTable()
+	for _, key := range s.Keys() {
+		k.Append(lua.LString(key))
+	}
+	L.Push(k)
+	return 1
+}
+
+func sessSave(L *lua.LState) int {
+	s := checkSess(L, 1)
+	t := L.ToNumber(2)
+	if t != 0 {
+		s.SetExpiry(time.Duration(t) * time.Hour)
+	}
+	if err := s.Save(); err != nil {
+		L.RaiseError("session save failed: %v", err)
+	}
+	return 0
+}
+
+func sessClear(L *lua.LState) int {
+	s := checkSess(L, 1)
+	if err := s.Destroy(); err != nil {
+		L.RaiseError("session clear failed: %v", err)
+	}
+	return 0
+}
+
+func checkSess(L *lua.LState, n int) *Session {
+	ud := L.CheckUserData(n)
+	sess, ok := ud.Value.(*Session)
+	if !ok {
+		L.ArgError(n, "expected type Session")
+	}
+	return sess
 }

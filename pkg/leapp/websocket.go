@@ -5,31 +5,31 @@ import (
 	"time"
 
 	"github.com/gofiber/contrib/websocket"
-	"github.com/gofiber/fiber/v2"
 	"github.com/vadv/gopher-lua-libs/json"
 	lua "github.com/yuin/gopher-lua"
 )
 
-func wsAppUpgrade(a *fiber.App) lua.LGFunction {
-	return func(L *lua.LState) int {
-		path := L.CheckString(1)
-		handler := L.CheckFunction(2)
-		p := lua.P{
-			Fn:      handler,
-			NRet:    0,
-			Protect: true,
-		}
-		wsConnHandler := func(c *websocket.Conn) {
-			defer c.Close()
-			if err := L.CallByParam(p, NewWsContext(L, c)); err != nil {
-				log.Println()
-			}
-		}
-		a.Use(path, websocket.New(wsConnHandler))
-		return 0
+// wsAppUpgrade adds a WebSocket handler to the Fiber app.
+func wsAppUpgrade(L *lua.LState) int {
+	app := checkApp(L, 1)
+	path := L.CheckString(2)
+	handler := L.CheckFunction(3)
+	p := lua.P{
+		Fn:      handler,
+		NRet:    0,
+		Protect: true,
 	}
+	wsConnHandler := func(c *websocket.Conn) {
+		defer c.Close()
+		if err := L.CallByParam(p, NewWsContext(L, c)); err != nil {
+			log.Println()
+		}
+	}
+	app.Use(path, websocket.New(wsConnHandler))
+	return 0
 }
 
+// NewWsContext creates a new Lua table representing the WebSocket context.
 func NewWsContext(L *lua.LState, c *websocket.Conn) lua.LValue {
 	ctx := L.NewTable()
 	dict := map[string]lua.LValue{
@@ -46,17 +46,18 @@ func NewWsContext(L *lua.LState, c *websocket.Conn) lua.LValue {
 	return ctx
 }
 
+// wsCtxState returns a Lua table representing the WebSocket context's state.
 func wsCtxState(L *lua.LState, c *websocket.Conn) lua.LValue {
-	s := c.Locals(localState).(state)
-	f := func(key string) lua.LValue {
-		if v, ok := s[key]; ok {
+	getter := func(key string) lua.LValue {
+		if v, ok := c.Locals(key).(lua.LValue); ok {
 			return v
 		}
 		return lua.LNil
 	}
-	return objReadOnly(L, mtGetter(f))
+	return objReadOnly(L, mtGetter(getter))
 }
 
+// wsCtxFuncs returns a map of WebSocket context functions that can be called from Lua scripts.
 func wsCtxFuncs(L *lua.LState, c *websocket.Conn) map[string]lua.LGFunction {
 	return map[string]lua.LGFunction{
 		"send": func(L *lua.LState) int {

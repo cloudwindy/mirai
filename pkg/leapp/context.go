@@ -6,37 +6,62 @@ import (
 	"mirai/pkg/lazysess"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/session"
 	"github.com/vadv/gopher-lua-libs/json"
-	"github.com/yuin/gluamapper"
 	lua "github.com/yuin/gopher-lua"
 )
 
-func NewContext(L *lua.LState, c *fiber.Ctx) lua.LValue {
-	ctx := L.NewTable()
+type Context struct {
+	*fiber.Ctx
+	store *session.Store
+}
 
-	strDict := ctxFields(L, c)
-	for k, v := range strDict {
-		ctx.RawSetString(k, lua.LString(v))
+// NewContext creates a new Lua table representing the Fiber context.
+func NewContext(L *lua.LState, app *Application, fc *fiber.Ctx) lua.LValue {
+	c := new(Context)
+	c.Ctx = fc
+	c.store = app.store
+
+	index := L.NewTable()
+
+	// Add string fields to the context table
+	strDict := map[string]string{
+		"id":     c.Locals("requestid").(string),
+		"method": c.Method(),
+		"url":    ctxUrl(c),
+		"path":   c.Path(),
+		"body":   string(c.Body()),
 	}
+	for k, v := range strDict {
+		index.RawSetString(k, lua.LString(v))
+	}
+
+	// Add object fields to the context table
 	objDict := map[string]lua.LValue{
 		"headers": ctxHeaders(L, c),
 		"params":  ctxParams(L, c),
 		"cookies": ctxCookies(L, c),
 		"query":   ctxQuery(L, c),
 		"state":   ctxState(L, c),
-	}
-	if sess, ok := c.Locals(localSession).(lazysess.Session); ok {
-		objDict["sess"] = NewSession(L, sess)
+		"sess":    ctxSession(L, c),
 	}
 	for k, v := range objDict {
-		ctx.RawSetString(k, v)
+		index.RawSetString(k, v)
 	}
-	L.SetFuncs(ctx, ctxFuncs(c))
 
-	return ctx
+	// Add function fields to the context table
+	funcDict := map[string]lua.LGFunction{
+		"type":  ctxType,
+		"send":  ctxSend,
+		"redir": ctxRedir,
+		"next":  ctxNext,
+	}
+	L.SetFuncs(index, funcDict)
+
+	return objProxy(L, c, index)
 }
 
-func ctxFields(L *lua.LState, c *fiber.Ctx) map[string]string {
+func ctxUrl(c *Context) string {
 	u := new(strings.Builder)
 	u.WriteString(c.Protocol())
 	u.WriteString("://")
@@ -47,21 +72,16 @@ func ctxFields(L *lua.LState, c *fiber.Ctx) map[string]string {
 		u.WriteByte('?')
 		u.Write(q.QueryString())
 	}
-
-	return map[string]string{
-		"id":     c.Locals("requestid").(string),
-		"method": c.Method(),
-		"url":    u.String(),
-		"path":   c.Path(),
-		"body":   string(c.Body()),
-	}
+	return u.String()
 }
 
-func ctxHeaders(L *lua.LState, c *fiber.Ctx) lua.LValue {
+// ctxHeaders returns a Lua table representing the context's headers.
+func ctxHeaders(L *lua.LState, c *Context) lua.LValue {
 	return objReadWrite(L, mtHttpGetter(c.Get), mtHttpSetter(c.Set))
 }
 
-func ctxParams(L *lua.LState, c *fiber.Ctx) lua.LValue {
+// ctxParams returns a Lua table representing the context's route parameters.
+func ctxParams(L *lua.LState, c *Context) lua.LValue {
 	params := L.NewTable()
 	for k, v := range c.AllParams() {
 		params.RawSetString(k, lua.LString(v))
@@ -69,25 +89,12 @@ func ctxParams(L *lua.LState, c *fiber.Ctx) lua.LValue {
 	return params
 }
 
-func ctxCookies(L *lua.LState, c *fiber.Ctx) lua.LValue {
-	mapper := gluamapper.NewMapper(gluamapper.Option{
-		TagName: "json",
-	})
-	setter := func(L *lua.LState) int {
-		name := L.CheckString(2)
-		t := L.CheckTable(3)
-		ck := new(fiber.Cookie)
-		if err := mapper.Map(t, ck); err != nil {
-			L.RaiseError("cookies set: %v", err)
-		}
-		ck.Name = name
-		c.Cookie(ck)
-		return 0
-	}
-	return objReadWrite(L, mtHttpGetter(c.Cookies), setter)
+func ctxCookies(L *lua.LState, c *Context) lua.LValue {
+	return NewCookies(L, c.Ctx)
 }
 
-func ctxQuery(L *lua.LState, c *fiber.Ctx) lua.LValue {
+// ctxQuery returns a Lua table representing the context's query parameters.
+func ctxQuery(L *lua.LState, c *Context) lua.LValue {
 	query := L.NewTable()
 	q := c.Context().QueryArgs()
 	q.VisitAll(func(key, value []byte) {
@@ -96,78 +103,94 @@ func ctxQuery(L *lua.LState, c *fiber.Ctx) lua.LValue {
 	return query
 }
 
-func ctxState(L *lua.LState, c *fiber.Ctx) lua.LValue {
-	s := c.Locals(localState).(state)
+// ctxState returns a Lua table representing the context's state.
+func ctxState(L *lua.LState, c *Context) lua.LValue {
 	getter := func(key string) lua.LValue {
-		if v, ok := s[key]; ok {
-			return v
+		v, ok := c.Locals(key).(lua.LValue)
+		if !ok {
+			return lua.LNil
 		}
-		return lua.LNil
+		return v
 	}
 	setter := func(key string, value lua.LValue) {
-		s[key] = value
+		c.Locals(key, value)
 	}
 	return objReadWrite(L, mtGetter(getter), mtSetter(setter))
 }
 
-func ctxFuncs(c *fiber.Ctx) map[string]lua.LGFunction {
-	return map[string]lua.LGFunction{
-		"type": func(L *lua.LState) int {
-			if L.GetTop() > 1 {
-				c.Type(L.CheckString(1), L.CheckString(2))
-			} else {
-				c.Type(L.CheckString(1))
-			}
-			return 0
-		},
-		"send": func(L *lua.LState) int {
-			var (
-				status  = 200
-				bodyLua lua.LValue
-				bodyStr string
-			)
-			if L.GetTop() > 1 {
-				status = L.CheckInt(1)
-				bodyLua = L.CheckAny(2)
-			} else {
-				bodyLua = L.CheckAny(1)
-			}
-			switch body := bodyLua.(type) {
-			case lua.LString:
-				bodyStr = string(body)
-			case lua.LNumber:
-				status = int(body)
-			case *lua.LTable:
-				bodyBytes, err := json.ValueEncode(body)
-				if err != nil {
-					L.RaiseError("http send json failed: %v", err)
-				}
-				bodyStr = string(bodyBytes)
-			default:
-				L.RaiseError("http send failed: unexpected type %s", body.Type().String())
-			}
-			if err := c.Status(status).SendString(bodyStr); err != nil {
-				L.RaiseError("http send failed: %v", err)
-			}
-			return 0
-		},
-		"redir": func(L *lua.LState) int {
-			status := 302
-			loc := ""
-			if L.GetTop() > 1 {
-				status = L.CheckInt(1)
-				loc = L.CheckString(2)
-			} else {
-				loc = L.CheckString(1)
-			}
-			c.Status(status).Location(loc)
-			return 0
-		},
-		"next": func(L *lua.LState) int {
-			if err := c.Next(); err != nil {
-				L.RaiseError("next: %v", err)
-			}
-			return 0
-		},
+func ctxSession(L *lua.LState, c *Context) lua.LValue {
+	s := lazysess.New(c.Ctx, c.store)
+	return NewSession(L, s)
+}
+
+func ctxType(L *lua.LState) int {
+	c := checkCtx(L, 1)
+	if L.GetTop() > 2 {
+		c.Type(L.CheckString(2), L.CheckString(3))
+	} else {
+		c.Type(L.CheckString(2))
 	}
+	return 0
+}
+
+func ctxSend(L *lua.LState) int {
+	var bodyLua lua.LValue
+	c := checkCtx(L, 1)
+	status := 200
+	bodyStr := ""
+	if L.GetTop() > 2 {
+		status = L.CheckInt(2)
+		bodyLua = L.CheckAny(3)
+	} else {
+		bodyLua = L.CheckAny(2)
+	}
+	switch body := bodyLua.(type) {
+	case lua.LString:
+		bodyStr = string(body)
+	case lua.LNumber:
+		status = int(body)
+	case *lua.LTable:
+		bodyBytes, err := json.ValueEncode(body)
+		if err != nil {
+			L.RaiseError("http send json failed: %v", err)
+		}
+		bodyStr = string(bodyBytes)
+	default:
+		L.RaiseError("http send failed: unexpected type %s", body.Type().String())
+	}
+	if err := c.Status(status).SendString(bodyStr); err != nil {
+		L.RaiseError("http send failed: %v", err)
+	}
+	return 0
+}
+
+func ctxRedir(L *lua.LState) int {
+	c := checkCtx(L, 1)
+	status := 302
+	loc := ""
+	if L.GetTop() > 2 {
+		status = L.CheckInt(2)
+		loc = L.CheckString(3)
+	} else {
+		loc = L.CheckString(2)
+	}
+	c.Status(status).Location(loc)
+	return 0
+}
+
+func ctxNext(L *lua.LState) int {
+	c := checkCtx(L, 1)
+	if err := c.Next(); err != nil {
+		L.RaiseError("next: %v", err)
+	}
+	return 0
+}
+
+func checkCtx(L *lua.LState, n int) *Context {
+	ud := L.CheckUserData(n)
+	ctx, ok := ud.Value.(*Context)
+	if !ok {
+		L.ArgError(n, "expected type Context")
+	}
+	return ctx
 }

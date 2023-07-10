@@ -1,6 +1,8 @@
 package leapp
 
-import lua "github.com/yuin/gopher-lua"
+import (
+	lua "github.com/yuin/gopher-lua"
+)
 
 // read-only iterable object
 func objIterable(L *lua.LState, iterMap map[string]lua.LValue) lua.LValue {
@@ -35,7 +37,7 @@ func objIterable(L *lua.LState, iterMap map[string]lua.LValue) lua.LValue {
 			return 1
 		},
 	}
-	return objProxy(L, mt)
+	return objProxyFuncs(L, mt)
 }
 
 // read-write object
@@ -44,7 +46,7 @@ func objReadWrite(L *lua.LState, getter lua.LGFunction, setter lua.LGFunction) l
 		"__index":    getter,
 		"__newindex": setter,
 	}
-	return objProxy(L, mt)
+	return objProxyFuncs(L, mt)
 }
 
 // read only object
@@ -52,11 +54,23 @@ func objReadOnly(L *lua.LState, getter lua.LGFunction) lua.LValue {
 	mt := map[string]lua.LGFunction{
 		"__index": getter,
 	}
-	return objProxy(L, mt)
+	return objProxyFuncs(L, mt)
 }
 
-// proxy object with metatable
-func objProxy(L *lua.LState, mtFuncs map[string]lua.LGFunction) lua.LValue {
+func objProxy(L *lua.LState, value interface{}, index lua.LValue, newIndex ...lua.LValue) lua.LValue {
+	obj := L.NewUserData()
+	obj.Value = value
+	mt := L.NewTable()
+	mt.RawSetString("__index", index)
+	if len(newIndex) > 0 {
+		mt.RawSetString("__newindex", newIndex[0])
+	}
+	L.SetMetatable(obj, mt)
+	return obj
+}
+
+// proxy object with metatable functions
+func objProxyFuncs(L *lua.LState, mtFuncs map[string]lua.LGFunction) lua.LValue {
 	obj := L.NewUserData()
 	mt := L.NewTable()
 	L.SetFuncs(mt, mtFuncs)

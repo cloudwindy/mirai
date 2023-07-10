@@ -21,11 +21,13 @@ func New(L *lua.LState) int {
 	obj := L.NewUserData()
 	obj.Value = u
 	mt := L.NewTypeMetatable(LTURL)
-	L.SetFuncs(mt, map[string]lua.LGFunction{
-		"__index":    URLGet,
-		"__newindex": URLSet,
-		"__concat":   URLResolve,
-	})
+	if mt.Len() == 0 {
+		L.SetFuncs(mt, map[string]lua.LGFunction{
+			"__index":    URLGet,
+			"__newindex": URLSet,
+			"__concat":   URLResolve,
+		})
+	}
 	L.SetMetatable(obj, mt)
 	L.Push(obj)
 	return 1

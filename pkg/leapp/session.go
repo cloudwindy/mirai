@@ -21,7 +21,7 @@ func NewSession(L *lua.LState, s lazysess.Session) lua.LValue {
 	index := map[string]lua.LGFunction{
 		"keys":  sessKeys,
 		"save":  sessSave,
-		"clear": sessClear,
+		"destroy": sessDestroy,
 	}
 
 	sess.index = make(map[string]lua.LValue)
@@ -84,7 +84,7 @@ func sessSave(L *lua.LState) int {
 	return 0
 }
 
-func sessClear(L *lua.LState) int {
+func sessDestroy(L *lua.LState) int {
 	s := checkSess(L, 1)
 	if err := s.Destroy(); err != nil {
 		L.RaiseError("session clear failed: %v", err)

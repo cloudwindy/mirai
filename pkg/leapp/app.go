@@ -1,6 +1,8 @@
 package leapp
 
 import (
+	"time"
+
 	"mirai/pkg/luaengine"
 
 	"github.com/gofiber/fiber/v2"
@@ -11,27 +13,26 @@ import (
 
 // Constants
 const (
-	LTApplication = "Application"
 	methodAll     = "ALL"
 )
 
-// Listener hook
-type Listener func(child *fiber.App) error
+// Start hook
+type Start func(child *fiber.App) error
 
 type Application struct {
 	*fiber.App
-	store  *session.Store
-	listen Listener
+	store *session.Store
+	start Start
 }
 
 // New creates a new instance of the Lua engine factory.
-func New(store *session.Store, listen Listener) luaengine.Factory {
+func New(store *session.Store, start Start) luaengine.Factory {
 	return func(L *lua.LState) lua.LValue {
 		// Create a new Fiber app
 		app := new(Application)
 		app.App = fiber.New()
 		app.store = store
-		app.listen = listen
+		app.start = start
 
 		// Set up the app functions
 		index := L.NewTable()
@@ -49,7 +50,8 @@ func New(store *session.Store, listen Listener) luaengine.Factory {
 			"trace":   appAddMethod(fiber.MethodTrace),
 			"patch":   appAddMethod(fiber.MethodPatch),
 			"upgrade": wsAppUpgrade,
-			"listen":  appListen,
+			"start":   appStart,
+			"stop":    appStop,
 		})
 
 		return objProxy(L, app, index)
@@ -71,11 +73,11 @@ func appHandler(L *lua.LState, app *Application, fn *lua.LFunction) fiber.Handle
 	}
 }
 
-// appUse returns a Lua function that adds middleware to the app.
+// appUse adds middleware to the app.
 func appUse(L *lua.LState) int {
 	app := checkApp(L, 1)
 	var values []interface{}
-	for i := 2; i < L.GetTop()+1; i++ {
+	for i := 2; i <= L.GetTop(); i++ {
 		switch val := L.CheckAny(i).(type) {
 		case lua.LString:
 			values = append(values, string(val))
@@ -95,7 +97,7 @@ func appUse(L *lua.LState) int {
 	return 0
 }
 
-// appAdd returns a Lua function that adds a route to the app.
+// appAdd adds a route to the app.
 func appAdd(L *lua.LState) int {
 	app := checkApp(L, 1)
 	method := L.CheckString(2)
@@ -105,7 +107,7 @@ func appAdd(L *lua.LState) int {
 	return 0
 }
 
-// appAddMethod returns a Lua function that adds a route with specified method to the app.
+// appAddMethod adds a route with specified method to the app.
 func appAddMethod(method string) lua.LGFunction {
 	return func(L *lua.LState) int {
 		app := checkApp(L, 1)
@@ -120,11 +122,27 @@ func appAddMethod(method string) lua.LGFunction {
 	}
 }
 
-// appListen returns a Lua function that starts the app's listener.
-func appListen(L *lua.LState) int {
+// appStart starts the app's listener.
+func appStart(L *lua.LState) int {
 	app := checkApp(L, 1)
-	if err := app.listen(app.App); err != nil {
-		L.RaiseError("listen: %v", err)
+	if err := app.start(app.App); err != nil {
+		L.RaiseError("app start: %v", err)
+	}
+	return 0
+}
+
+func appStop(L *lua.LState) int {
+	app := checkApp(L, 1)
+	timeout := float64(L.ToNumber(2))
+	sec := float64(time.Second)
+	if timeout != 0 {
+		if err := app.ShutdownWithTimeout(time.Duration(timeout * sec)); err != nil {
+			L.RaiseError("app stop: %v", err)
+		}
+	} else {
+		if err := app.Shutdown(); err != nil {
+			L.RaiseError("app stop: %v", err)
+		}
 	}
 	return 0
 }

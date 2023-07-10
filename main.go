@@ -150,7 +150,7 @@ func start(ctx *cli.Context) error {
 		warn.Println("Allowed")
 	}
 
-	listen := func(child *fiber.App) error {
+	start := func(child *fiber.App) error {
 		api.Mount("/", child).Name("app")
 
 		app.Use(etag.New())
@@ -177,7 +177,7 @@ func start(ctx *cli.Context) error {
 	}
 
 	engine := luaengine.New(c.Index, c.Env)
-	engine.Register("app", leapp.New(store, listen))
+	engine.Register("app", leapp.New(store, start))
 	if err := engine.Run(); err != nil {
 		return err
 	}

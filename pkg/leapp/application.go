@@ -13,7 +13,8 @@ import (
 
 // Constants
 const (
-	methodAll     = "ALL"
+	methodAll = "ALL"
+	LTRouter = "Router"
 )
 
 // Start hook
@@ -54,7 +55,7 @@ func New(store *session.Store, start Start) luaengine.Factory {
 			"stop":    appStop,
 		})
 
-		return objProxy(L, app, index)
+		return objAnonymous(L, app, index)
 	}
 }
 

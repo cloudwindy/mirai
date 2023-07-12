@@ -57,13 +57,24 @@ func objReadOnly(L *lua.LState, getter lua.LGFunction) lua.LValue {
 	return objProxyFuncs(L, mt)
 }
 
-func objProxy(L *lua.LState, value interface{}, index lua.LValue, newIndex ...lua.LValue) lua.LValue {
+func objAnonymous(L *lua.LState, value interface{}, index lua.LValue, newIndex ...lua.LValue) lua.LValue {
 	obj := L.NewUserData()
 	obj.Value = value
 	mt := L.NewTable()
 	mt.RawSetString("__index", index)
 	if len(newIndex) > 0 {
 		mt.RawSetString("__newindex", newIndex[0])
+	}
+	L.SetMetatable(obj, mt)
+	return obj
+}
+
+func objClass(L *lua.LState, name string, value interface{}, index ...lua.LValue) lua.LValue {
+	obj := L.NewUserData()
+	obj.Value = value
+	mt := L.NewTypeMetatable(name)
+	if len(index) > 0 {
+		mt.RawSetString("__index", index[0])
 	}
 	L.SetMetatable(obj, mt)
 	return obj

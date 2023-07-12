@@ -58,7 +58,7 @@ func NewContext(L *lua.LState, app *Application, fc *fiber.Ctx) lua.LValue {
 	}
 	L.SetFuncs(index, funcDict)
 
-	return objProxy(L, c, index)
+	return objAnonymous(L, c, index)
 }
 
 func ctxUrl(c *Context) string {

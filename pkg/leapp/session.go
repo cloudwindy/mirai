@@ -19,8 +19,8 @@ func NewSession(L *lua.LState, s lazysess.Session) lua.LValue {
 	sess := new(Session)
 	sess.Session = s
 	index := map[string]lua.LGFunction{
-		"keys":  sessKeys,
-		"save":  sessSave,
+		"keys":    sessKeys,
+		"save":    sessSave,
 		"destroy": sessDestroy,
 	}
 
@@ -32,7 +32,7 @@ func NewSession(L *lua.LState, s lazysess.Session) lua.LValue {
 	indexFunc := L.NewFunction(sessIndex)
 	newIndex := L.NewFunction(sessNewIndex)
 
-	return objProxy(L, sess, indexFunc, newIndex)
+	return objAnonymous(L, sess, indexFunc, newIndex)
 }
 
 func sessIndex(L *lua.LState) int {

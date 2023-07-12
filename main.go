@@ -38,7 +38,7 @@ import (
 
 // Package info
 const (
-	Version = "1.0"
+	Version = "1.1"
 )
 
 // Color helper functions
@@ -86,7 +86,7 @@ func main() {
 				Action: start,
 			},
 			{
-				Name: "run",
+				Name:  "run",
 				Usage: "run command",
 			},
 		},

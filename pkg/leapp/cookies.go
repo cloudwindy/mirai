@@ -25,7 +25,7 @@ func NewCookies(L *lua.LState, c *fiber.Ctx) lua.LValue {
 	}
 
 	indexFunc := L.NewFunction(ckIndex)
-	return objProxy(L, ck, indexFunc)
+	return objAnonymous(L, ck, indexFunc)
 }
 
 func ckIndex(L *lua.LState) int {

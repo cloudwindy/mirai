@@ -54,15 +54,6 @@ var (
 )
 
 func main() {
-	// 设置退出信号
-	term := make(chan os.Signal, 1)
-	signal.Notify(term, os.Interrupt, syscall.SIGTERM)
-	defer signal.Stop(term)
-
-	// 优雅退出
-	done := make(chan any, 1)
-	go hardStop(term, done)
-
 	app := &cli.App{
 		Name:                   "mirai",
 		Usage:                  "Server for the Mirai Project",
@@ -103,6 +94,15 @@ func main() {
 }
 
 func start(ctx *cli.Context) error {
+	// 设置退出信号
+	term := make(chan os.Signal, 1)
+	signal.Notify(term, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(term)
+
+	// 优雅退出
+	done := make(chan any, 1)
+	go hardStop(term, done)
+
 	c, err := config.Parse(ctx.Path("proj"))
 	if err != nil {
 		return err
@@ -289,12 +289,12 @@ func ensureDir(fileName string) {
 	}
 }
 
-func hardStop(termCh chan os.Signal, stopCh chan any) {
+func hardStop(term chan os.Signal, stop chan any) {
 	select {
-	case <-termCh:
+	case <-term:
 		// terminate
 		os.Exit(1)
-	case <-stopCh:
+	case <-stop:
 		return
 	}
 }

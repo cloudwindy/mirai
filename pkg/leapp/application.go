@@ -4,6 +4,8 @@ import (
 	"time"
 
 	"mirai/pkg/luaengine"
+	"mirai/pkg/luaextlib"
+	"mirai/pkg/luapool"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/session"
@@ -14,30 +16,48 @@ import (
 // Constants
 const (
 	methodAll = "ALL"
-	LTRouter = "Router"
+	LTRouter  = "Router"
 )
+
+var lspool = luapool.New()
 
 // Start hook
 type Start func(child *fiber.App) error
 
+type Config struct {
+	Globals []string
+	Store   *session.Store
+	Start   Start
+}
+
 type Application struct {
 	*fiber.App
-	store *session.Store
-	start Start
+	globals map[string]lua.LValue
+	store   *session.Store
+	start   Start
 }
 
 // New creates a new instance of the Lua engine factory.
-func New(store *session.Store, start Start) luaengine.Factory {
+func New(c Config) luaengine.Factory {
 	return func(L *lua.LState) lua.LValue {
 		// Create a new Fiber app
 		app := new(Application)
 		app.App = fiber.New()
-		app.store = store
-		app.start = start
+		app.store = c.Store
+		app.start = c.Start
+		app.globals = make(map[string]lua.LValue)
+
+		for _, name := range c.Globals {
+			app.globals[name] = L.GetGlobal(name)
+		}
 
 		// Set up the app functions
 		index := L.NewTable()
 		L.SetFuncs(index, map[string]lua.LGFunction{
+			"start": appStart,
+			"stop":  appStop,
+			"set":   appSet,
+
 			"use":     appUse,
 			"add":     appAdd,
 			"all":     appAddMethod(methodAll),
@@ -51,22 +71,27 @@ func New(store *session.Store, start Start) luaengine.Factory {
 			"trace":   appAddMethod(fiber.MethodTrace),
 			"patch":   appAddMethod(fiber.MethodPatch),
 			"upgrade": wsAppUpgrade,
-			"start":   appStart,
-			"stop":    appStop,
 		})
 
 		return objAnonymous(L, app, index)
 	}
 }
 
-// appHandler creates a Fiber handler function from a Lua function.
-func appHandler(L *lua.LState, app *Application, fn *lua.LFunction) fiber.Handler {
+func appHandlerAsync(app *Application, fn *lua.LFunction) fiber.Handler {
 	p := lua.P{
 		Fn:      fn,
 		NRet:    1,
 		Protect: true,
 	}
 	return func(c *fiber.Ctx) error {
+		L, new := lspool.Get()
+		if new {
+			luaextlib.OpenLib(L)
+			for k, v := range app.globals {
+				L.SetGlobal(k, v)
+			}
+		}
+		defer lspool.Put(L)
 		if err := L.CallByParam(p, NewContext(L, app, c)); err != nil {
 			return errWithStackTrace(err, c)
 		}
@@ -91,7 +116,7 @@ func appUse(L *lua.LState) int {
 			})
 			values = append(values, list)
 		case *lua.LFunction:
-			values = append(values, appHandler(L, app, val))
+			values = append(values, appHandlerAsync(app, val))
 		}
 	}
 	app.Use(values...)
@@ -104,7 +129,7 @@ func appAdd(L *lua.LState) int {
 	method := L.CheckString(2)
 	path := L.CheckString(3)
 	handler := L.CheckFunction(4)
-	app.Add(method, path, appHandler(L, app, handler))
+	app.Add(method, path, appHandlerAsync(app, handler))
 	return 0
 }
 
@@ -115,9 +140,9 @@ func appAddMethod(method string) lua.LGFunction {
 		path := L.CheckString(2)
 		handler := L.CheckFunction(3)
 		if method == methodAll {
-			app.All(path, appHandler(L, app, handler))
+			app.All(path, appHandlerAsync(app, handler))
 		} else {
-			app.Add(method, path, appHandler(L, app, handler))
+			app.Add(method, path, appHandlerAsync(app, handler))
 		}
 		return 0
 	}
@@ -145,6 +170,14 @@ func appStop(L *lua.LState) int {
 			L.RaiseError("app stop: %v", err)
 		}
 	}
+	return 0
+}
+
+func appSet(L *lua.LState) int {
+	app := checkApp(L, 1)
+	key := L.CheckString(2)
+	value := L.CheckAny(3)
+	app.globals[key] = value
 	return 0
 }
 

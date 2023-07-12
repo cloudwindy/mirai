@@ -6,6 +6,7 @@ import (
 	"mirai/lib/pwdchecker"
 	"mirai/lib/url"
 	"mirai/lib/urlpath"
+	"mirai/lib/uuid"
 
 	"github.com/vadv/gopher-lua-libs/base64"
 	"github.com/vadv/gopher-lua-libs/cmd"
@@ -27,6 +28,7 @@ func PreloadAll(L *lua.LState) {
 	bcrypt.Preload(L)
 	mail.Preload(L)
 	pwdchecker.Preload(L)
+	uuid.Preload(L)
 	url.Preload(L)
 	urlpath.Preload(L)
 

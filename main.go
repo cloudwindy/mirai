@@ -43,9 +43,14 @@ const (
 
 // Color helper functions
 var (
-	succ = color.New(color.FgGreen)
-	info = color.New(color.FgBlue)
-	warn = color.New(color.FgHiYellow)
+	colors = map[string]lecli.Print{
+		"succ": succ,
+		"info": info,
+		"warn": warn,
+	}
+	succ = color.New(color.FgGreen).PrintFunc()
+	info = color.New(color.FgBlue).PrintFunc()
+	warn = color.New(color.FgHiYellow).PrintFunc()
 )
 
 func main() {
@@ -147,7 +152,8 @@ func start(ctx *cli.Context) error {
 	if c.Editing {
 		admin.All("/files/*", filesHandler(c.Index))
 		fmt.Print(" Editing: ")
-		warn.Println("Allowed")
+		warn("Allowed")
+		fmt.Println()
 	}
 
 	start := func(child *fiber.App) error {
@@ -172,17 +178,23 @@ func start(ctx *cli.Context) error {
 
 		fmt.Println()
 		fmt.Print(" Listening at ")
-		info.Println(c.Listen)
+		info(c.Listen)
+		fmt.Println()
 		return errors.Wrap(app.Listen(c.Listen), "http start")
 	}
 
 	engine := luaengine.New(c.Index, c.Env)
-	engine.Register("app", leapp.New(store, start))
+	capp := leapp.Config{
+		Globals: []string{"db", "app"},
+		Store:   store,
+		Start:   start,
+	}
+	engine.Register("app", leapp.New(capp))
+	engine.Register("db", ledb.New(c.DB))
+	engine.Register("cli", lecli.New(colors))
 	if err := engine.Run(); err != nil {
 		return err
 	}
-	engine.Register("db", ledb.New(c.DB))
-	engine.Register("cli", lecli.New())
 
 	return nil
 }

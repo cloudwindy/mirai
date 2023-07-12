@@ -4,15 +4,10 @@ import (
 	lua "github.com/yuin/gopher-lua"
 )
 
-// Preload adds urlpath to the given Lua state's package.preload table. After it
-// has been preloaded, it can be loaded using require:
-//
-//	local urlpath = require("urlpath")
 func Preload(L *lua.LState) {
 	L.PreloadModule("urlpath", Loader)
 }
 
-// Loader is the module loader function.
 func Loader(L *lua.LState) int {
 	t := L.NewTable()
 	L.SetFuncs(t, api)

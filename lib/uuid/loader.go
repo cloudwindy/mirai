@@ -1,11 +1,11 @@
-package url
+package uuid
 
 import (
 	lua "github.com/yuin/gopher-lua"
 )
 
 func Preload(L *lua.LState) {
-	L.PreloadModule("url", Loader)
+	L.PreloadModule("uuid", Loader)
 }
 
 func Loader(L *lua.LState) int {
@@ -16,9 +16,7 @@ func Loader(L *lua.LState) int {
 }
 
 var api = map[string]lua.LGFunction{
-	"new":       New,
-	"encode":    Encode,
-	"decode":    Decode,
-	"normalize": Normalize,
-	"resolve":   URLResolve,
+	"new": New,
+	"tobytes": ToBytes,
+	"frombytes": FromBytes,
 }

@@ -53,7 +53,7 @@ func ckSet(L *lua.LState) int {
 	value := L.CheckString(4)
 	options := L.ToTable(5)
 	c := new(fiber.Cookie)
-	if ck != nil {
+	if options != nil {
 		if err := mapper.Map(options, ck); err != nil {
 			L.RaiseError("cookies set: %v", err)
 		}
@@ -66,9 +66,7 @@ func ckSet(L *lua.LState) int {
 
 func ckClear(L *lua.LState) int {
 	ck := checkCk(L, 1)
-	if err := ck; err != nil {
-		L.RaiseError("session clear failed: %v", err)
-	}
+	ck.ClearCookie()
 	return 0
 }
 

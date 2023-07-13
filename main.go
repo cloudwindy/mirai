@@ -15,7 +15,7 @@ import (
 	"mirai/pkg/leapp"
 	"mirai/pkg/lecli"
 	"mirai/pkg/ledb"
-	"mirai/pkg/luaengine"
+	"mirai/pkg/lue"
 
 	"github.com/fatih/color"
 	"github.com/gofiber/fiber/v2"
@@ -109,7 +109,7 @@ func start(ctx *cli.Context) error {
 	}
 
 	color.Blue(art.String("Mirai Project"))
-	fmt.Println(" Mirai Server " + Version + " with " + luaengine.LuaVersion)
+	fmt.Println(" Mirai Server " + Version + " with " + lue.LuaVersion)
 	fmt.Println(" Fiber " + fiber.Version)
 	fmt.Println()
 
@@ -183,15 +183,16 @@ func start(ctx *cli.Context) error {
 		return errors.Wrap(app.Listen(c.Listen), "http start")
 	}
 
-	engine := luaengine.New(c.Index, c.Env)
+	engine := lue.New(c.Index, c.Env)
 	capp := leapp.Config{
-		Globals: []string{"db", "app"},
+		Globals: []string{"db", "env"},
 		Store:   store,
 		Start:   start,
 	}
-	engine.Register("app", leapp.New(capp))
-	engine.Register("db", ledb.New(c.DB))
-	engine.Register("cli", lecli.New(colors))
+	engine.Register("app", leapp.New(capp)).
+		Register("db", ledb.New(c.DB)).
+		Register("cli", lecli.New(colors))
+
 	if err := engine.Run(); err != nil {
 		return err
 	}

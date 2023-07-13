@@ -1,19 +1,11 @@
-package lutil
+package lut
 
 import lua "github.com/yuin/gopher-lua"
 
 func Unprotect(fn *lua.LFunction, self lua.LValue, nret int) lua.LGFunction {
-	p := lua.P{
-		Fn:   fn,
-		NRet: nret,
-	}
 	return func(L *lua.LState) int {
-		params := make([]lua.LValue, 0, L.GetTop())
-		for i := 1; i <= L.GetTop(); i++ {
-			params = append(params, L.Get(i))
-		}
-		params[0] = self
-		L.CallByParam(p, params...)
+		L.Replace(1, self)
+		L.Call(L.GetTop(), nret)
 		err := L.Get(-1)
 		if err != lua.LNil {
 			L.RaiseError(lua.LVAsString(err))

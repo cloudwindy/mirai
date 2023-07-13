@@ -3,9 +3,7 @@ package leapp
 import (
 	"time"
 
-	"mirai/pkg/luaengine"
-	"mirai/pkg/luaextlib"
-	"mirai/pkg/luapool"
+	"mirai/pkg/lue"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/session"
@@ -18,8 +16,6 @@ const (
 	methodAll = "ALL"
 	LTRouter  = "Router"
 )
-
-var lspool = luapool.New()
 
 // Start hook
 type Start func(child *fiber.App) error
@@ -38,8 +34,9 @@ type Application struct {
 }
 
 // New creates a new instance of the Lua engine factory.
-func New(c Config) luaengine.Factory {
-	return func(L *lua.LState) lua.LValue {
+func New(c Config) lue.Module {
+	return func(E *lue.Engine) lua.LValue {
+		L := E.L
 		// Create a new Fiber app
 		app := new(Application)
 		app.App = fiber.New()
@@ -53,11 +50,10 @@ func New(c Config) luaengine.Factory {
 
 		// Set up the app functions
 		index := L.NewTable()
-		L.SetFuncs(index, map[string]lua.LGFunction{
-			"start": appStart,
-			"stop":  appStop,
-			"set":   appSet,
-
+		E.SetFuncs(index, map[string]lue.Fun{
+			"start":   appStart,
+			"stop":    appStop,
+			"set":     appSet,
 			"use":     appUse,
 			"add":     appAdd,
 			"all":     appAddMethod(methodAll),
@@ -73,26 +69,23 @@ func New(c Config) luaengine.Factory {
 			"upgrade": wsAppUpgrade,
 		})
 
-		return objAnonymous(L, app, index)
+		return E.Anonymous(app, index)
 	}
 }
 
-func appHandlerAsync(app *Application, fn *lua.LFunction) fiber.Handler {
+func appHandlerAsync(E *lue.Engine, app *Application, fn *lua.LFunction) fiber.Handler {
+	// cannot pass upvalues to function
+	if len(fn.Upvalues) > 0 {
+		E.L.ArgError(2, "cannot pass closures")
+	}
 	p := lua.P{
 		Fn:      fn,
 		NRet:    1,
 		Protect: true,
 	}
 	return func(c *fiber.Ctx) error {
-		L, new := lspool.Get()
-		if new {
-			luaextlib.OpenLib(L)
-			for k, v := range app.globals {
-				L.SetGlobal(k, v)
-			}
-		}
-		defer lspool.Put(L)
-		if err := L.CallByParam(p, NewContext(L, app, c)); err != nil {
+		E, _ := E.New()
+		if err := E.L.CallByParam(p, NewContext(E, app, c)); err != nil {
 			return errWithStackTrace(err, c)
 		}
 		return nil
@@ -100,8 +93,9 @@ func appHandlerAsync(app *Application, fn *lua.LFunction) fiber.Handler {
 }
 
 // appUse adds middleware to the app.
-func appUse(L *lua.LState) int {
-	app := checkApp(L, 1)
+func appUse(E *lue.Engine) int {
+	L := E.L
+	app := E.Data(1).(*Application)
 	var values []interface{}
 	for i := 2; i <= L.GetTop(); i++ {
 		switch val := L.CheckAny(i).(type) {
@@ -116,7 +110,7 @@ func appUse(L *lua.LState) int {
 			})
 			values = append(values, list)
 		case *lua.LFunction:
-			values = append(values, appHandlerAsync(app, val))
+			values = append(values, appHandlerAsync(E, app, val))
 		}
 	}
 	app.Use(values...)
@@ -124,41 +118,44 @@ func appUse(L *lua.LState) int {
 }
 
 // appAdd adds a route to the app.
-func appAdd(L *lua.LState) int {
-	app := checkApp(L, 1)
+func appAdd(E *lue.Engine) int {
+	L := E.L
+	app := E.Data(1).(*Application)
 	method := L.CheckString(2)
 	path := L.CheckString(3)
 	handler := L.CheckFunction(4)
-	app.Add(method, path, appHandlerAsync(app, handler))
+	app.Add(method, path, appHandlerAsync(E, app, handler))
 	return 0
 }
 
 // appAddMethod adds a route with specified method to the app.
-func appAddMethod(method string) lua.LGFunction {
-	return func(L *lua.LState) int {
-		app := checkApp(L, 1)
+func appAddMethod(method string) lue.Fun {
+	return func(E *lue.Engine) int {
+		L := E.L
+		app := E.Data(1).(*Application)
 		path := L.CheckString(2)
 		handler := L.CheckFunction(3)
 		if method == methodAll {
-			app.All(path, appHandlerAsync(app, handler))
+			app.All(path, appHandlerAsync(E, app, handler))
 		} else {
-			app.Add(method, path, appHandlerAsync(app, handler))
+			app.Add(method, path, appHandlerAsync(E, app, handler))
 		}
 		return 0
 	}
 }
 
 // appStart starts the app's listener.
-func appStart(L *lua.LState) int {
-	app := checkApp(L, 1)
+func appStart(E *lue.Engine) int {
+	app := E.Data(1).(*Application)
 	if err := app.start(app.App); err != nil {
-		L.RaiseError("app start: %v", err)
+		E.L.RaiseError("app start: %v", err)
 	}
 	return 0
 }
 
-func appStop(L *lua.LState) int {
-	app := checkApp(L, 1)
+func appStop(E *lue.Engine) int {
+	L := E.L
+	app := E.Data(1).(*Application)
 	timeout := float64(L.ToNumber(2))
 	sec := float64(time.Second)
 	if timeout != 0 {
@@ -173,21 +170,13 @@ func appStop(L *lua.LState) int {
 	return 0
 }
 
-func appSet(L *lua.LState) int {
-	app := checkApp(L, 1)
+func appSet(E *lue.Engine) int {
+	L := E.L
+	app := E.Data(1).(*Application)
 	key := L.CheckString(2)
 	value := L.CheckAny(3)
 	app.globals[key] = value
 	return 0
-}
-
-func checkApp(L *lua.LState, n int) *Application {
-	ud := L.CheckUserData(n)
-	app, ok := ud.Value.(*Application)
-	if !ok {
-		L.ArgError(n, "expected type Application")
-	}
-	return app
 }
 
 // errWithStackTrace adds a stack trace to the error if it's a Lua error.

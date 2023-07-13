@@ -1,15 +1,19 @@
 package ledb
 
 import (
+	"os"
+	"path"
+
 	"mirai/pkg/config"
-	"mirai/pkg/luaengine"
-	"mirai/pkg/lutil"
+	"mirai/pkg/lue"
+	"mirai/pkg/lut"
 
 	lua "github.com/yuin/gopher-lua"
 )
 
-func New(c config.DB) luaengine.Factory {
-	return func(L *lua.LState) lua.LValue {
+func New(c config.DB) lue.Module {
+	return func(E *lue.Engine) lua.LValue {
+		L := E.L
 		// open db in protected mode
 		pdb, err := Open(L, c.Driver, c.Conn)
 		if err != nil {
@@ -21,13 +25,16 @@ func New(c config.DB) luaengine.Factory {
 		stmt := L.GetField(pdb, "stmt").(*lua.LFunction)
 		command := L.GetField(pdb, "command").(*lua.LFunction)
 		close := L.GetField(pdb, "close").(*lua.LFunction)
+		
 		db := L.NewTable()
+		db.RawSetString("sqlpath", lua.LString(c.SQLPath))
 		L.SetFuncs(db, map[string]lua.LGFunction{
-			"query":   lutil.Unprotect(query, pdb, 2),
-			"exec":    lutil.Unprotect(exec, pdb, 2),
-			"command": lutil.Unprotect(command, pdb, 2),
-			"stmt":    unprotectStmt(stmt, pdb),
-			"close":   lutil.Unprotect(close, pdb, 1),
+			"query":    lut.Unprotect(query, pdb, 2),
+			"exec":     lut.Unprotect(exec, pdb, 2),
+			"command":  lut.Unprotect(command, pdb, 2),
+			"stmt":     unprotectStmt(stmt, pdb),
+			"loadfile": loadfile,
+			"close":    lut.Unprotect(close, pdb, 1),
 		})
 
 		return db
@@ -35,9 +42,10 @@ func New(c config.DB) luaengine.Factory {
 }
 
 func unprotectStmt(fn *lua.LFunction, self lua.LValue) lua.LGFunction {
-	stmt := lutil.Unprotect(fn, self, 2)
+	stmt := lut.Unprotect(fn, self, 2)
 	return func(L *lua.LState) int {
 		stmt(L)
+
 		// prepared statement
 		pstmt := L.Get(1)
 		query := L.GetField(pstmt, "query").(*lua.LFunction)
@@ -47,12 +55,29 @@ func unprotectStmt(fn *lua.LFunction, self lua.LValue) lua.LGFunction {
 		// unprotected prepared statement
 		upstmt := L.NewTable()
 		L.SetFuncs(upstmt, map[string]lua.LGFunction{
-			"query": lutil.Unprotect(query, pstmt, 2),
-			"exec":  lutil.Unprotect(exec, pstmt, 2),
-			"close": lutil.Unprotect(close, pstmt, 1),
+			"query": lut.Unprotect(query, pstmt, 2),
+			"exec":  lut.Unprotect(exec, pstmt, 2),
+			"close": lut.Unprotect(close, pstmt, 1),
 		})
 
 		L.Push(upstmt)
 		return 1
 	}
+}
+
+func loadfile(L *lua.LState) int {
+	db := L.CheckTable(1)
+	name := L.CheckString(2)
+	sqlpath := L.GetField(db, "sqlpath")
+	sqlfile := path.Join(lua.LVAsString(sqlpath), name+".sql")
+	sql, err := os.ReadFile(sqlfile)
+	if err != nil {
+		L.RaiseError("db loadfile: %v", err)
+	}
+	L.Pop(L.GetTop())
+	L.CallByParam(lua.P{
+		Fn:   L.GetField(db, "exec").(*lua.LFunction),
+		NRet: 1,
+	}, db, lua.LString(sql))
+	return 1
 }

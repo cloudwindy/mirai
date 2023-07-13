@@ -1,4 +1,4 @@
-package luapool
+package lutpool
 
 import (
 	"sync"
@@ -6,13 +6,18 @@ import (
 	lua "github.com/yuin/gopher-lua"
 )
 
-func New() *LSPool {
-	return new(LSPool)
+func New(opt ...lua.Options) *LSPool {
+	pool := new(LSPool)
+	if len(opt) > 0 {
+		pool.options = opt[0]
+	}
+	return pool
 }
 
 type LSPool struct {
-	m     sync.Mutex
-	Saved []*lua.LState
+	m       sync.Mutex
+	options lua.Options
+	Saved   []*lua.LState
 }
 
 func (pl *LSPool) Get() (L *lua.LState, new bool) {
@@ -28,8 +33,7 @@ func (pl *LSPool) Get() (L *lua.LState, new bool) {
 }
 
 func (pl *LSPool) New() *lua.LState {
-	L := lua.NewState()
-	return L
+	return lua.NewState(pl.options)
 }
 
 func (pl *LSPool) Put(L *lua.LState) {

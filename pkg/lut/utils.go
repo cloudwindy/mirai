@@ -1,4 +1,4 @@
-package lutil
+package lut
 
 import (
 	"bufio"

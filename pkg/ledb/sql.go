@@ -8,15 +8,16 @@ import (
 )
 
 func Open(L *lua.LState, driver, connString string) (db lua.LValue, goerr error) {
+	L.Pop(L.GetTop())
 	L.CallByParam(lua.P{
 		Fn:   L.NewFunction(odbclib.Loader),
 		NRet: 1,
 	})
-	L.Pop(1)
 
 	config := L.NewTable()
 	config.RawSetString("shared", lua.LTrue)
 	args := []lua.LValue{lua.LString(driver), lua.LString(connString), config}
+	L.Pop(L.GetTop())
 	L.CallByParam(lua.P{
 		Fn:   L.NewFunction(odbclib.Open),
 		NRet: 2,

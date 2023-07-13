@@ -1,6 +1,8 @@
 package leapp
 
 import (
+	"mirai/pkg/lue"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/yuin/gluamapper"
 	lua "github.com/yuin/gopher-lua"
@@ -11,25 +13,21 @@ type Cookies struct {
 	index map[string]lua.LValue
 }
 
-func NewCookies(L *lua.LState, c *fiber.Ctx) lua.LValue {
+func NewCookies(E *lue.Engine, c *fiber.Ctx) lua.LValue {
 	ck := new(Cookies)
 	ck.Ctx = c
-	index := map[string]lua.LGFunction{
+	ck.index = E.MapFuncs(map[string]lue.Fun{
 		"set":   ckSet,
 		"clear": ckClear,
-	}
+	})
 
-	ck.index = make(map[string]lua.LValue)
-	for i, v := range index {
-		ck.index[i] = L.NewFunction(v)
-	}
-
-	indexFunc := L.NewFunction(ckIndex)
-	return objAnonymous(L, ck, indexFunc)
+	indexFunc := E.LFun(ckIndex)
+	return E.Anonymous(ck, indexFunc)
 }
 
-func ckIndex(L *lua.LState) int {
-	ck := checkCk(L, 1)
+func ckIndex(E *lue.Engine) int {
+	L := E.L
+	ck := E.Data(1).(*Cookies)
 	key := L.CheckString(2)
 	if v, ok := ck.index[key]; ok {
 		L.Push(v)
@@ -40,8 +38,9 @@ func ckIndex(L *lua.LState) int {
 	return 1
 }
 
-func ckSet(L *lua.LState) int {
-	ck := checkCk(L, 1)
+func ckSet(E *lue.Engine) int {
+	L := E.L
+	ck := E.Data(1).(*Cookies)
 	key := L.CheckString(2)
 	if L.Get(3) == lua.LNil {
 		ck.ClearCookie(key)
@@ -64,17 +63,8 @@ func ckSet(L *lua.LState) int {
 	return 0
 }
 
-func ckClear(L *lua.LState) int {
-	ck := checkCk(L, 1)
+func ckClear(E *lue.Engine) int {
+	ck := E.Data(1).(*Cookies)
 	ck.ClearCookie()
 	return 0
-}
-
-func checkCk(L *lua.LState, n int) *Cookies {
-	ud := L.CheckUserData(n)
-	ck, ok := ud.Value.(*Cookies)
-	if !ok {
-		L.ArgError(n, "expected type Cookies")
-	}
-	return ck
 }

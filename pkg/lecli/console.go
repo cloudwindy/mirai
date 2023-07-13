@@ -1,7 +1,7 @@
 package lecli
 
 import (
-	"mirai/pkg/luaengine"
+	"mirai/pkg/lue"
 
 	lua "github.com/yuin/gopher-lua"
 )
@@ -21,12 +21,12 @@ func checkCli(L *lua.LState, n int) *Console {
 	return cli
 }
 
-func New(colors map[string]Print) luaengine.Factory {
-	return func(L *lua.LState) lua.LValue {
+func New(colors map[string]Print) lue.Module {
+	return func(E *lue.Engine) lua.LValue {
+		L := E.L
 		reg := L.NewTable()
 
-		regFuncs := map[string]lua.LGFunction{
-		}
+		regFuncs := map[string]lua.LGFunction{}
 		for name := range colors {
 			regFuncs[name] = colorMethod(name)
 		}

@@ -4,7 +4,7 @@ import (
 	"io"
 	"os"
 
-	"mirai/pkg/luaextlib"
+	"mirai/pkg/lelib"
 
 	"github.com/yuin/gluamapper"
 	lua "github.com/yuin/gopher-lua"
@@ -23,14 +23,15 @@ type Config struct {
 }
 
 type DB struct {
-	Driver string
-	Conn   string
+	Driver  string
+	Conn    string
+	SQLPath string
 }
 
 func Parse(projectDir string) (c Config, err error) {
 	L := lua.NewState()
 	defer L.Close()
-	luaextlib.OpenLib(L)
+	lelib.OpenLib(L)
 
 	if err = os.Chdir(projectDir); err != nil {
 		return

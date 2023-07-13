@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"mirai/pkg/lazysess"
+	"mirai/pkg/lue"
 
 	"github.com/yuin/gluamapper"
 	lua "github.com/yuin/gopher-lua"
@@ -15,28 +16,24 @@ type Session struct {
 	index map[string]lua.LValue
 }
 
-func NewSession(L *lua.LState, s lazysess.Session) lua.LValue {
+func NewSession(E *lue.Engine, s lazysess.Session) lua.LValue {
 	sess := new(Session)
 	sess.Session = s
-	index := map[string]lua.LGFunction{
+	sess.index = E.MapFuncs(map[string]lue.Fun{
 		"keys":    sessKeys,
 		"save":    sessSave,
 		"destroy": sessDestroy,
-	}
+	})
 
-	sess.index = make(map[string]lua.LValue)
-	for i, v := range index {
-		sess.index[i] = L.NewFunction(v)
-	}
+	index := E.LFun(sessIndex)
+	newIndex := E.LFun(sessNewIndex)
 
-	indexFunc := L.NewFunction(sessIndex)
-	newIndex := L.NewFunction(sessNewIndex)
-
-	return objAnonymous(L, sess, indexFunc, newIndex)
+	return E.Anonymous(sess, index, newIndex)
 }
 
-func sessIndex(L *lua.LState) int {
-	s := checkSess(L, 1)
+func sessIndex(E *lue.Engine) int {
+	L := E.L
+	s := E.Data(1).(*Session)
 	key := L.CheckString(2)
 	if v, ok := s.index[key]; ok {
 		L.Push(v)
@@ -47,8 +44,9 @@ func sessIndex(L *lua.LState) int {
 	return 1
 }
 
-func sessNewIndex(L *lua.LState) int {
-	s := checkSess(L, 1)
+func sessNewIndex(E *lue.Engine) int {
+	L := E.L
+	s := E.Data(1).(*Session)
 	key := L.CheckString(2)
 	if L.Get(3) == lua.LNil {
 		s.Delete(key)
@@ -62,8 +60,9 @@ func sessNewIndex(L *lua.LState) int {
 	return 0
 }
 
-func sessKeys(L *lua.LState) int {
-	s := checkSess(L, 1)
+func sessKeys(E *lue.Engine) int {
+	L := E.L
+	s := E.Data(1).(*Session)
 	k := L.NewTable()
 	for _, key := range s.Keys() {
 		k.Append(lua.LString(key))
@@ -72,8 +71,9 @@ func sessKeys(L *lua.LState) int {
 	return 1
 }
 
-func sessSave(L *lua.LState) int {
-	s := checkSess(L, 1)
+func sessSave(E *lue.Engine) int {
+	L := E.L
+	s := E.Data(1).(*Session)
 	t := L.ToNumber(2)
 	if t != 0 {
 		s.SetExpiry(time.Duration(t) * time.Hour)
@@ -84,19 +84,11 @@ func sessSave(L *lua.LState) int {
 	return 0
 }
 
-func sessDestroy(L *lua.LState) int {
-	s := checkSess(L, 1)
+func sessDestroy(E *lue.Engine) int {
+	L := E.L
+	s := E.Data(1).(*Session)
 	if err := s.Destroy(); err != nil {
 		L.RaiseError("session clear failed: %v", err)
 	}
 	return 0
-}
-
-func checkSess(L *lua.LState, n int) *Session {
-	ud := L.CheckUserData(n)
-	sess, ok := ud.Value.(*Session)
-	if !ok {
-		L.ArgError(n, "expected type Session")
-	}
-	return sess
 }

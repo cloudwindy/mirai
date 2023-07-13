@@ -8,7 +8,7 @@ func Unprotect(fn *lua.LFunction, self lua.LValue, nret int) lua.LGFunction {
 		NRet: nret,
 	}
 	return func(L *lua.LState) int {
-		params := make([]lua.LValue, 0)
+		params := make([]lua.LValue, 0, L.GetTop())
 		for i := 1; i <= L.GetTop(); i++ {
 			params = append(params, L.Get(i))
 		}

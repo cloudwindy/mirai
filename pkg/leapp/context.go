@@ -66,12 +66,10 @@ func ctxUrl(c *Context) string {
 	return u.String()
 }
 
-// ctxHeaders returns a Lua table representing the context's headers.
 func ctxHeaders(E *lue.Engine, c *Context) lua.LValue {
 	return E.ReadWrite(mtHttpGetter(c.Get), mtHttpSetter(c.Set))
 }
 
-// ctxParams returns a Lua table representing the context's route parameters.
 func ctxParams(E *lue.Engine, c *Context) lua.LValue {
 	return E.SetDict(nil, c.AllParams())
 }
@@ -80,7 +78,6 @@ func ctxCookies(E *lue.Engine, c *Context) lua.LValue {
 	return NewCookies(E, c.Ctx)
 }
 
-// ctxQuery returns a Lua table representing the context's query parameters.
 func ctxQuery(E *lue.Engine, c *Context) lua.LValue {
 	query := E.L.NewTable()
 	q := c.Context().QueryArgs()
@@ -90,7 +87,6 @@ func ctxQuery(E *lue.Engine, c *Context) lua.LValue {
 	return query
 }
 
-// ctxState returns a Lua table representing the context's state.
 func ctxState(E *lue.Engine, c *Context) lua.LValue {
 	getter := func(key string) lua.LValue {
 		v, ok := c.Locals(key).(lua.LValue)

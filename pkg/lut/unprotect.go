@@ -5,7 +5,8 @@ import lua "github.com/yuin/gopher-lua"
 func Unprotect(fn *lua.LFunction, self lua.LValue, nret int) lua.LGFunction {
 	return func(L *lua.LState) int {
 		L.Replace(1, self)
-		L.Call(L.GetTop(), nret)
+		L.Insert(fn, 1)
+		L.Call(L.GetTop()-1, nret)
 		err := L.Get(-1)
 		if err != lua.LNil {
 			L.RaiseError(lua.LVAsString(err))

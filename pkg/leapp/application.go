@@ -1,6 +1,7 @@
 package leapp
 
 import (
+	"strings"
 	"time"
 
 	"mirai/pkg/lue"
@@ -14,7 +15,6 @@ import (
 // Constants
 const (
 	methodAll = "ALL"
-	LTRouter  = "Router"
 )
 
 // Start hook
@@ -76,7 +76,11 @@ func New(c Config) lue.Module {
 func appHandlerAsync(E *lue.Engine, app *Application, fn *lua.LFunction) fiber.Handler {
 	// cannot pass upvalues to function
 	if len(fn.Upvalues) > 0 {
-		E.L.ArgError(2, "cannot pass closures")
+		values := []string{}
+		for _, v := range fn.Upvalues {
+			values = append(values, v.Value().String())
+		}
+		E.L.RaiseError("cannot use passed values: %s", strings.Join(values, ", "))
 	}
 	p := lua.P{
 		Fn:      fn,
@@ -84,7 +88,13 @@ func appHandlerAsync(E *lue.Engine, app *Application, fn *lua.LFunction) fiber.H
 		Protect: true,
 	}
 	return func(c *fiber.Ctx) error {
-		E, _ := E.New()
+		E, new := E.New()
+		if new {
+			for k, v := range app.globals {
+				E.L.SetGlobal(k, v)
+			}
+		}
+		defer E.Close()
 		if err := E.L.CallByParam(p, NewContext(E, app, c)); err != nil {
 			return errWithStackTrace(err, c)
 		}

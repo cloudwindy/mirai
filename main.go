@@ -139,10 +139,12 @@ func start(ctx *cli.Context) error {
 	})
 
 	api := app.Group("/api")
-	api.Use(limiter.New(limiter.Config{
-		Max:        200,
-		Expiration: 10 * time.Minute,
-	}))
+	if l := c.Limiter; l.Enabled {
+		api.Use(limiter.New(limiter.Config{
+			Max:        l.Max,
+			Expiration: time.Duration(l.Dur) * time.Second,
+		}))
+	}
 	api.Use(recover.New(recover.Config{
 		EnableStackTrace: true,
 	}))

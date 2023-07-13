@@ -6,18 +6,18 @@ import (
 	lua "github.com/yuin/gopher-lua"
 )
 
+type LSPool struct {
+	m       sync.Mutex
+	options lua.Options
+	Saved   []*lua.LState
+}
+
 func New(opt ...lua.Options) *LSPool {
 	pool := new(LSPool)
 	if len(opt) > 0 {
 		pool.options = opt[0]
 	}
 	return pool
-}
-
-type LSPool struct {
-	m       sync.Mutex
-	options lua.Options
-	Saved   []*lua.LState
 }
 
 func (pl *LSPool) Get() (L *lua.LState, new bool) {

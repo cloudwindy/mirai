@@ -24,10 +24,8 @@ func wsAppUpgrade(E *lue.Engine) int {
 	}
 	wsConnHandler := func(c *websocket.Conn) {
 		defer c.Close()
-
 		E, _ := E.New()
 		defer E.Close()
-
 		if err := E.L.CallByParam(p, NewWsContext(E, c)); err != nil {
 			log.Println()
 		}

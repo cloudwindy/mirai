@@ -25,20 +25,37 @@ func New(c config.DB) lue.Module {
 		stmt := L.GetField(pdb, "stmt").(*lua.LFunction)
 		command := L.GetField(pdb, "command").(*lua.LFunction)
 		close := L.GetField(pdb, "close").(*lua.LFunction)
-		
+
 		db := L.NewTable()
 		db.RawSetString("sqlpath", lua.LString(c.SQLPath))
 		L.SetFuncs(db, map[string]lua.LGFunction{
+			"loadfile": LoadFile,
 			"query":    lut.Unprotect(query, pdb, 2),
 			"exec":     lut.Unprotect(exec, pdb, 2),
 			"command":  lut.Unprotect(command, pdb, 2),
 			"stmt":     unprotectStmt(stmt, pdb),
-			"loadfile": loadfile,
 			"close":    lut.Unprotect(close, pdb, 1),
 		})
 
 		return db
 	}
+}
+
+func LoadFile(L *lua.LState) int {
+	db := L.CheckTable(1)
+	name := L.CheckString(2)
+	sqlpath := L.GetField(db, "sqlpath")
+	sqlfile := path.Join(lua.LVAsString(sqlpath), name+".sql")
+	sql, err := os.ReadFile(sqlfile)
+	if err != nil {
+		L.RaiseError("db loadfile: %v", err)
+	}
+	L.Pop(L.GetTop())
+	L.CallByParam(lua.P{
+		Fn:   L.GetField(db, "exec").(*lua.LFunction),
+		NRet: 1,
+	}, db, lua.LString(sql))
+	return 1
 }
 
 func unprotectStmt(fn *lua.LFunction, self lua.LValue) lua.LGFunction {
@@ -63,21 +80,4 @@ func unprotectStmt(fn *lua.LFunction, self lua.LValue) lua.LGFunction {
 		L.Push(upstmt)
 		return 1
 	}
-}
-
-func loadfile(L *lua.LState) int {
-	db := L.CheckTable(1)
-	name := L.CheckString(2)
-	sqlpath := L.GetField(db, "sqlpath")
-	sqlfile := path.Join(lua.LVAsString(sqlpath), name+".sql")
-	sql, err := os.ReadFile(sqlfile)
-	if err != nil {
-		L.RaiseError("db loadfile: %v", err)
-	}
-	L.Pop(L.GetTop())
-	L.CallByParam(lua.P{
-		Fn:   L.GetField(db, "exec").(*lua.LFunction),
-		NRet: 1,
-	}, db, lua.LString(sql))
-	return 1
 }

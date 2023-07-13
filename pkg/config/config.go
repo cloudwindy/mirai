@@ -19,6 +19,7 @@ type Config struct {
 	Root    string
 	Index   string
 	DB      DB
+	Limiter Limiter
 	Env     *lua.LTable `lua:"-"`
 }
 
@@ -26,6 +27,12 @@ type DB struct {
 	Driver  string
 	Conn    string
 	SQLPath string
+}
+
+type Limiter struct {
+	Enabled bool
+	Max int
+	Dur int
 }
 
 func Parse(projectDir string) (c Config, err error) {

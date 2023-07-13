@@ -18,7 +18,11 @@ const (
 // Package variables
 var (
 	DefaultIndex = "index.lua"
-	lspool       = lutpool.New()
+	lspool       = lutpool.New(lua.Options{
+		CallStackSize:   64,
+		RegistrySize:    1024,
+		RegistryMaxSize: 1024 * 10,
+	})
 )
 
 type Engine struct {

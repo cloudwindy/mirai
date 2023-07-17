@@ -4,6 +4,7 @@ import (
 	"mirai/lib/bcrypt"
 	"mirai/lib/mail"
 	"mirai/lib/pwdchecker"
+	"mirai/lib/readline"
 	"mirai/lib/url"
 	"mirai/lib/urlpath"
 	"mirai/lib/uuid"
@@ -41,6 +42,7 @@ func PreloadAll(L *lua.LState) {
 	bcrypt.Preload(L)
 	mail.Preload(L)
 	pwdchecker.Preload(L)
+	readline.Preload(L)
 	uuid.Preload(L)
 	url.Preload(L)
 	urlpath.Preload(L)

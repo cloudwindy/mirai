@@ -1,6 +1,7 @@
 package main
 
 import (
+	_ "embed"
 	"fmt"
 	"io/fs"
 	"os"
@@ -51,6 +52,8 @@ var (
 	succ = color.New(color.FgGreen).PrintFunc()
 	info = color.New(color.FgBlue).PrintFunc()
 	warn = color.New(color.FgHiYellow).PrintFunc()
+	//go:embed ilua.lua
+	ilua string
 )
 
 func main() {
@@ -158,7 +161,7 @@ func start(ctx *cli.Context) error {
 		fmt.Println()
 	}
 
-	start := func(child *fiber.App) error {
+	start := func(child *fiber.App) {
 		api.Mount("/", child).Name("app")
 
 		app.Use(etag.New())
@@ -182,20 +185,29 @@ func start(ctx *cli.Context) error {
 		fmt.Print(" Listening at ")
 		info(c.Listen)
 		fmt.Println()
-		return errors.Wrap(app.Listen(c.Listen), "http start")
+		fmt.Println()
+		go func() {
+			if err := app.Listen(c.Listen); err != nil {
+				panic(errors.Wrap(err, "http start"))
+			}
+		}()
 	}
 
 	engine := lue.New(c.Index, c.Env)
 	capp := leapp.Config{
-		Globals: []string{"db", "env"},
-		Store:   store,
-		Start:   start,
+		Store: store,
+		Start: start,
 	}
 	engine.Register("app", leapp.New(capp)).
 		Register("db", ledb.New(c.DB)).
 		Register("cli", lecli.New(colors))
 
 	if err := engine.Run(); err != nil {
+		return err
+	}
+
+	done <- nil
+	if err := engine.Eval(ilua); err != nil {
 		return err
 	}
 

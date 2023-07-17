@@ -4,6 +4,7 @@ go 1.20
 
 require (
 	github.com/PuerkitoBio/purell v1.2.0
+	github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e
 	github.com/emersion/go-sasl v0.0.0-20220912192320-0145f2c60ead
 	github.com/emersion/go-smtp v0.16.0
 	github.com/fatih/color v1.15.0

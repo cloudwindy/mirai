@@ -18,12 +18,11 @@ const (
 )
 
 // Start hook
-type Start func(child *fiber.App) error
+type Start func(child *fiber.App)
 
 type Config struct {
-	Globals []string
-	Store   *session.Store
-	Start   Start
+	Store *session.Store
+	Start Start
 }
 
 type Application struct {
@@ -43,10 +42,6 @@ func New(c Config) lue.Module {
 		app.store = c.Store
 		app.start = c.Start
 		app.globals = make(map[string]lua.LValue)
-
-		for _, name := range c.Globals {
-			app.globals[name] = L.GetGlobal(name)
-		}
 
 		// Set up the app functions
 		index := L.NewTable()
@@ -82,20 +77,14 @@ func appHandlerAsync(E *lue.Engine, app *Application, fn *lua.LFunction) fiber.H
 		}
 		E.L.RaiseError("cannot use passed values: %s", strings.Join(values, ", "))
 	}
-	p := lua.P{
-		Fn:      fn,
-		NRet:    1,
-		Protect: true,
-	}
 	return func(c *fiber.Ctx) error {
-		E, new := E.New()
-		if new {
-			for k, v := range app.globals {
-				E.L.SetGlobal(k, v)
-			}
-		}
+		E, _ := E.New()
 		defer E.Close()
-		if err := E.L.CallByParam(p, NewContext(E, app, c)); err != nil {
+		env := E.L.CheckTable(lua.EnvironIndex)
+		for k, v := range app.globals {
+			env.RawSetString(k, v)
+		}
+		if err := E.CallLFun(fn, 1, env, NewContext(E, app, c)); err != nil {
 			return errWithStackTrace(err, c)
 		}
 		return nil
@@ -157,9 +146,7 @@ func appAddMethod(method string) lue.Fun {
 // appStart starts the app's listener.
 func appStart(E *lue.Engine) int {
 	app := E.Data(1).(*Application)
-	if err := app.start(app.App); err != nil {
-		E.L.RaiseError("app start: %v", err)
-	}
+	app.start(app.App)
 	return 0
 }
 

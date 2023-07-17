@@ -114,6 +114,19 @@ func (e *Engine) SetDict(tb *lua.LTable, dict map[string]string) *lua.LTable {
 	return tb
 }
 
+func (e *Engine) CallLFun(lf *lua.LFunction, nret int, env *lua.LTable, params ...lua.LValue) error {
+	L := e.L
+	nf := *lf
+	lf = &nf
+	L.SetFEnv(lf, env)
+	L.Pop(L.GetTop())
+	return L.CallByParam(lua.P{
+		Fn:      &nf,
+		NRet:    nret,
+		Protect: true,
+	}, params...)
+}
+
 func (e *Engine) LFun(fn Fun) *lua.LFunction {
 	return e.L.NewFunction(e.LGFun(fn))
 }
@@ -161,4 +174,11 @@ func (e *Engine) Run() (err error) {
 		return
 	}
 	return
+}
+
+func (e *Engine) Eval(str string) (err error) {
+	if e.parent != nil {
+		panic("Cannot run a child engine.")
+	}
+	return e.L.DoString(str)
 }

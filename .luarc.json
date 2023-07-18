@@ -1,5 +1,3 @@
 {
-  "runtime.version": "Lua 5.1",
-  "codeLens.enable": true,
-  "semantic.keyword": true
+  "runtime.version": "Lua 5.1"
 }

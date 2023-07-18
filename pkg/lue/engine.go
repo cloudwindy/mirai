@@ -160,7 +160,7 @@ func (e *Engine) Register(name string, module Module) *Engine {
 	return e
 }
 
-func (e *Engine) Run() (err error) {
+func (e *Engine) Run() *Engine {
 	if e.parent != nil {
 		panic("Cannot run a child engine.")
 	}
@@ -168,17 +168,20 @@ func (e *Engine) Run() (err error) {
 	defer e.Unlock()
 	file, _, err := dir.Index(e.path, DefaultIndex)
 	if err != nil {
-		return
+		panic(err)
 	}
 	if err = e.L.DoFile(file); err != nil {
-		return
+		panic(err)
 	}
-	return
+	return e
 }
 
-func (e *Engine) Eval(str string) (err error) {
+func (e *Engine) Eval(str string) *Engine {
 	if e.parent != nil {
 		panic("Cannot run a child engine.")
 	}
-	return e.L.DoString(str)
+	if err := e.L.DoString(str); err != nil {
+		panic(err)
+	}
+	return e
 }

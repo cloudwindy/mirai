@@ -59,7 +59,7 @@ local arg = g.arg
 local _VERSION = g._VERSION
 
 -- local vars
-local readline, saveline
+local rl = {}
 local identifier = "^[_%a][_%w]*$"
 
 --
@@ -620,7 +620,7 @@ Ilua.vars = Ilua.print_variables
 function Ilua:get_input()
   local lines, i, input, chunk, err = {}, 1
   while true do
-    input = readline((i == 1) and self.prompt or self.prompt2)
+    input = rl.readline((i == 1) and self.prompt or self.prompt2)
     if not input then return end
     lines[i] = input
     input = concat(lines, "\n")
@@ -750,7 +750,7 @@ function Ilua:run()
     local input = self:get_input()
     if not input or trim(input) == 'quit' then break end
     self:eval_lua(input)
-    saveline(input)
+    rl.saveline(input)
   end
 
   if self.savef then
@@ -783,18 +783,17 @@ pcall(function()
 end)
 
 -- Unix readline support, if readline.so is available...
-local rl
-local err = pcall(function()
-  rl = require 'readline'
-  readline = rl.readline
-  saveline = rl.add_history
+local ok = pcall(function()
+  local rllib = require 'readline'
+  rl.readline = rllib.readline
+  rl.saveline = rllib.add_history
 end)
-if not rl then
-  readline = function(prompt)
+if not ok then
+  rl.readline = function(prompt)
     write(prompt)
     return read()
   end
-  saveline = function(s) end
+  rl.saveline = function(s) end
 end
 
 local params = {}
@@ -877,12 +876,3 @@ if arg then
     i = i + 1
   end
 end
-
--- create an Ilua instance
-local ilua = Ilua:new(params)
-
--- expose ilua to global environment so any modules/files loaded can see it
-g.ilua = ilua
-
-ilua:start()
-ilua:run()

@@ -3,20 +3,19 @@ package main
 import (
 	_ "embed"
 	"fmt"
-	"io/fs"
 	"os"
 	"os/signal"
 	"path"
-	"path/filepath"
-	"strings"
 	"syscall"
 	"time"
 
+	"mirai/pkg/admin"
 	"mirai/pkg/config"
 	"mirai/pkg/leapp"
 	"mirai/pkg/lecli"
 	"mirai/pkg/ledb"
 	"mirai/pkg/lue"
+	"mirai/pkg/timer"
 
 	"github.com/fatih/color"
 	"github.com/gofiber/fiber/v2"
@@ -120,7 +119,7 @@ func start(ctx *cli.Context) error {
 		ServerHeader:          "Mirai Server",
 		DisableStartupMessage: true,
 	})
-	app.Use(PrintTimer("total", "Total Time"))
+	app.Use(timer.Print("total", "Total Time"))
 	app.Use(favicon.New())
 	app.Use(requestid.New())
 	app.Use(logger.New(logger.Config{
@@ -141,28 +140,28 @@ func start(ctx *cli.Context) error {
 		Storage: storage,
 	})
 
-	api := app.Group("/api")
+	apigrp := app.Group("/api")
 	if l := c.Limiter; l.Enabled {
-		api.Use(limiter.New(limiter.Config{
+		apigrp.Use(limiter.New(limiter.Config{
 			Max:        l.Max,
 			Expiration: time.Duration(l.Dur) * time.Second,
 		}))
 	}
-	api.Use(recover.New(recover.Config{
+	apigrp.Use(recover.New(recover.Config{
 		EnableStackTrace: true,
 	}))
-	api.Use(PrintTimer("exec", "Script Execution"))
+	apigrp.Use(timer.Print("exec", "Script Execution"))
 
-	admin := api.Group("/admin")
+	admingrp := apigrp.Group("/admin")
 	if c.Editing {
-		admin.All("/files/*", filesHandler(c.Index))
+		admingrp.All("/files/*", admin.Files(c.Index))
 		fmt.Print(" Editing: ")
 		warn("Allowed")
 		fmt.Println()
 	}
 
 	start := func(child *fiber.App) {
-		api.Mount("/", child).Name("app")
+		apigrp.Mount("/", child).Name("app")
 
 		app.Use(etag.New())
 		app.Use(cache.New(cache.Config{
@@ -200,108 +199,23 @@ func start(ctx *cli.Context) error {
 	}
 	engine.Register("app", leapp.New(capp)).
 		Register("db", ledb.New(c.DB)).
-		Register("cli", lecli.New(colors))
-
-	if err := engine.Run(); err != nil {
-		return err
-	}
+		Register("cli", lecli.New(colors)).
+		Run()
 
 	done <- nil
-	if err := engine.Eval(ilua); err != nil {
-		return err
-	}
+	engine.Eval(ilua).
+		Eval(`
+		local params = {
+			prompt = '> ',
+			prompt2 = '  ',
+			disable_startup_message = true
+		}
+		local ilua = Ilua:new(params)
+		ilua:start()
+		ilua:run()
+		`)
 
 	return nil
-}
-
-func StartTimer() fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		start := time.Now()
-		c.Locals("timer", start)
-		return c.Next()
-	}
-}
-
-func PrintTimer(name string, desc string, started ...bool) fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		var (
-			start    time.Time
-			bstarted = !(len(started) != 0 && started[0])
-			err      error
-		)
-		if bstarted {
-			start = time.Now()
-			c.Locals("timer", start)
-			err = c.Next()
-		}
-		stop := time.Now()
-		if start.IsZero() {
-			start = c.Locals("timer").(time.Time)
-		}
-		timing := new(strings.Builder)
-		timing.WriteString(name)
-		if len(desc) != 0 {
-			timing.WriteString(";desc=")
-			timing.WriteByte('"')
-			timing.WriteString(desc)
-			timing.WriteByte('"')
-		}
-		timing.WriteString(";dur=")
-		timing.WriteString(fmt.Sprintf("%.02f", float64(stop.Sub(start).Microseconds())/1000))
-		c.Append(fiber.HeaderServerTiming, timing.String())
-		if !bstarted {
-			err = c.Next()
-		}
-		return err
-	}
-}
-
-func filesHandler(base string) fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		file := c.Params("*")
-		if file == "" {
-			names := make([]string, 0)
-			err := filepath.WalkDir(base, func(path string, d fs.DirEntry, err error) error {
-				if !d.IsDir() {
-					path = strings.TrimPrefix(path, base+"/")
-					names = append(names, path)
-				}
-				return err
-			})
-			if err != nil {
-				return err
-			}
-			return c.JSON(names)
-		}
-		file = path.Join(base, file)
-		switch c.Method() {
-		case "GET":
-			return c.SendFile(file)
-		case "PUT":
-			ensureDir(file)
-			if err := os.WriteFile(file, c.Body(), 0o644); err != nil {
-				return err
-			}
-			return c.SendString("ok")
-		case "DELETE":
-			if err := os.Remove(file); err != nil {
-				return err
-			}
-			return c.SendString("ok")
-		}
-		return nil
-	}
-}
-
-// Create directories recursively
-func ensureDir(fileName string) {
-	dirName := filepath.Dir(fileName)
-	if _, serr := os.Stat(dirName); serr != nil {
-		merr := os.MkdirAll(dirName, os.ModePerm)
-		if merr != nil {
-			panic(merr)
-		}
-	}
 }
 
 func hardStop(term chan os.Signal, stop chan any) {

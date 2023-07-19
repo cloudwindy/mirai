@@ -38,7 +38,7 @@ func Normalize(L *lua.LState) int {
 
 	s, err := purell.NormalizeURLString(s, purell.FlagsSafe|purell.FlagRemoveDotSegments)
 	if err != nil {
-		L.RaiseError("url normalize failed: %v", err)
+		L.RaiseError("url normalize: %v", err)
 	}
 
 	L.Push(lua.LString(s))
@@ -57,7 +57,7 @@ func Decode(L *lua.LState) int {
 
 	s, err := url.QueryUnescape(s)
 	if err != nil {
-		L.RaiseError("url query unescape failed: %v", err)
+		L.RaiseError("url query unescape: %v", err)
 	}
 
 	L.Push(lua.LString(s))
@@ -133,7 +133,7 @@ func URLSet(L *lua.LState) int {
 	case "href":
 		u, err := url.Parse(v)
 		if err != nil {
-			L.RaiseError("url parse failed: %v", err)
+			L.RaiseError("url parse: %v", err)
 		}
 		ud.Value = u
 	case "password":
@@ -143,7 +143,7 @@ func URLSet(L *lua.LState) int {
 	case "port":
 		hostname, _, err := net.SplitHostPort(u.Host)
 		if err != nil {
-			L.RaiseError("url split host port failed: %v", err)
+			L.RaiseError("url split host port: %v", err)
 		}
 		u.Host = net.JoinHostPort(hostname, v)
 	case "protocol":
@@ -192,11 +192,11 @@ func GetURL(L *lua.LState, n int) *url.URL {
 	}
 	str, err := purell.NormalizeURLString(str, purell.FlagsSafe|purell.FlagRemoveDotSegments)
 	if err != nil {
-		L.RaiseError("url normalize failed: %v", err)
+		L.RaiseError("url normalize: %v", err)
 	}
 	u, err := url.Parse(str)
 	if err != nil {
-		L.RaiseError("url parse failed: %v", err)
+		L.RaiseError("url parse: %v", err)
 	}
 	return u
 }

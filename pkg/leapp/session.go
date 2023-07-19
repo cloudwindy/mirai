@@ -79,7 +79,7 @@ func sessSave(E *lue.Engine) int {
 		s.SetExpiry(time.Duration(t) * time.Hour)
 	}
 	if err := s.Save(); err != nil {
-		L.RaiseError("session save failed: %v", err)
+		L.RaiseError("session save: %v", err)
 	}
 	return 0
 }
@@ -88,7 +88,7 @@ func sessDestroy(E *lue.Engine) int {
 	L := E.L
 	s := E.Data(1).(*Session)
 	if err := s.Destroy(); err != nil {
-		L.RaiseError("session clear failed: %v", err)
+		L.RaiseError("session clear: %v", err)
 	}
 	return 0
 }

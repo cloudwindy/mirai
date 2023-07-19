@@ -29,25 +29,25 @@ func Send(L *lua.LState) int {
 
 	c, err := smtp.Dial(addr)
 	if err != nil {
-		L.RaiseError("smtp dial failed: %v", err)
+		L.RaiseError("smtp dial: %v", err)
 	}
 
 	if u.Scheme == "smtps" {
 		if err := c.StartTLS(nil); err != nil {
-			L.RaiseError("smtp starttls failed: %v", err)
+			L.RaiseError("smtp starttls: %v", err)
 		}
 	}
 
 	if username != "" && password != "" {
 		sc := sasl.NewPlainClient("", username, password)
 		if err := c.Auth(sc); err != nil {
-			L.RaiseError("smtp auth failed: %v", err)
+			L.RaiseError("smtp auth: %v", err)
 		}
 	}
 
 	err = c.SendMail(from, to, strings.NewReader(body))
 	if err != nil {
-		L.RaiseError("smtp send failed: %v", err)
+		L.RaiseError("smtp send: %v", err)
 	}
 	return 0
 }

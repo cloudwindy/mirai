@@ -32,6 +32,7 @@ type Engine struct {
 	path    string
 	modules map[string]Module
 	parent  *Engine
+	err     error
 	sync.Mutex
 }
 
@@ -164,14 +165,19 @@ func (e *Engine) Run() *Engine {
 	if e.parent != nil {
 		panic("Cannot run a child engine.")
 	}
+	if e.err != nil {
+		return e
+	}
 	e.Lock()
 	defer e.Unlock()
 	file, _, err := dir.Index(e.path, DefaultIndex)
 	if err != nil {
-		panic(err)
+		e.err = err
+		return e
 	}
 	if err = e.L.DoFile(file); err != nil {
-		panic(err)
+		e.err = err
+		return e
 	}
 	return e
 }
@@ -180,8 +186,16 @@ func (e *Engine) Eval(str string) *Engine {
 	if e.parent != nil {
 		panic("Cannot run a child engine.")
 	}
+	if e.err != nil {
+		return e
+	}
 	if err := e.L.DoString(str); err != nil {
-		panic(err)
+		e.err = err
+		return e
 	}
 	return e
+}
+
+func (e *Engine) Err() error {
+	return e.err
 }

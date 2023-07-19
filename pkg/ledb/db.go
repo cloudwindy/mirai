@@ -17,7 +17,7 @@ func New(c config.DB) lue.Module {
 		// open db in protected mode
 		pdb, err := Open(L, c.Driver, c.Conn)
 		if err != nil {
-			L.RaiseError("db open failed: %v", err)
+			L.RaiseError("db open: %v", err)
 		}
 
 		query := L.GetField(pdb, "query").(*lua.LFunction)

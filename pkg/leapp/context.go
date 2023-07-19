@@ -23,7 +23,7 @@ func NewContext(E *lue.Engine, app *Application, fc *fiber.Ctx) lua.LValue {
 
 	c := new(Context)
 	c.Ctx = fc
-	c.store = app.store
+	c.store = app.c.Store
 
 	index := L.NewTable()
 
@@ -137,14 +137,14 @@ func ctxSend(E *lue.Engine) int {
 	case *lua.LTable:
 		bodyBytes, err := json.ValueEncode(body)
 		if err != nil {
-			L.RaiseError("http send json failed: %v", err)
+			L.RaiseError("http send json: %v", err)
 		}
 		bodyStr = string(bodyBytes)
 	default:
-		L.RaiseError("http send failed: unexpected type %s", body.Type().String())
+		L.RaiseError("http send: unexpected type %s", body.Type().String())
 	}
 	if err := c.Status(status).SendString(bodyStr); err != nil {
-		L.RaiseError("http send failed: %v", err)
+		L.RaiseError("http send: %v", err)
 	}
 	return 0
 }

@@ -10,10 +10,14 @@ import (
 func Readline(L *lua.LState) int {
 	prompt := L.CheckString(1)
 	line, err := readline.Line(prompt)
-	if err != nil && !errors.Is(err, readline.ErrInterrupt) {
-		L.RaiseError("readline read: %v", err)
+	if err != nil {
+		if !errors.Is(err, readline.ErrInterrupt) {
+			L.RaiseError("readline read: %v", err)
+		}
+		L.Push(lua.LNil)
+	} else {
+		L.Push(lua.LString(line))
 	}
-	L.Push(lua.LString(line))
 	return 1
 }
 

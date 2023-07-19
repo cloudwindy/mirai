@@ -14,41 +14,47 @@ import (
 
 // Constants
 const (
-	methodAll = "ALL"
+	methodAll     = "ALL"
+	LTApplication = "Application"
 )
 
-// Start hook
-type Start func(child *fiber.App)
+type (
+	StartAndReloadHandler func() error
+	StopHandler           func(timeout time.Duration) error
+)
 
 type Config struct {
-	Store *session.Store
-	Start Start
+	App    fiber.Router
+	Store  *session.Store
+	Start  StartAndReloadHandler
+	Reload StartAndReloadHandler
+	Stop   StopHandler
 }
 
 type Application struct {
-	*fiber.App
+	c       Config
+	sub     bool
 	globals map[string]lua.LValue
-	store   *session.Store
-	start   Start
+	fiber.Router
 }
 
 // New creates a new instance of the Lua engine factory.
 func New(c Config) lue.Module {
 	return func(E *lue.Engine) lua.LValue {
-		L := E.L
 		// Create a new Fiber app
 		app := new(Application)
-		app.App = fiber.New()
-		app.store = c.Store
-		app.start = c.Start
+		app.Router = c.App
 		app.globals = make(map[string]lua.LValue)
+		app.c = c
 
 		// Set up the app functions
-		index := L.NewTable()
+		index := E.L.NewTable()
 		E.SetFuncs(index, map[string]lue.Fun{
 			"start":   appStart,
+			"reload":  appReload,
 			"stop":    appStop,
 			"set":     appSet,
+			"sub":     appSub,
 			"use":     appUse,
 			"add":     appAdd,
 			"all":     appAddMethod(methodAll),
@@ -64,7 +70,7 @@ func New(c Config) lue.Module {
 			"upgrade": wsAppUpgrade,
 		})
 
-		return E.Anonymous(app, index)
+		return E.Class(LTApplication, app, index)
 	}
 }
 
@@ -89,6 +95,17 @@ func appHandlerAsync(E *lue.Engine, app *Application, fn *lua.LFunction) fiber.H
 		}
 		return nil
 	}
+}
+
+func appSub(E *lue.Engine) int {
+	L := E.L
+	app := E.Data(1).(*Application)
+	prefix := L.CheckString(2)
+	subapp := new(Application)
+	subapp.Router = app.Group(prefix)
+	subapp.sub = true
+	L.Push(E.Class(LTApplication, subapp))
+	return 1
 }
 
 // appUse adds middleware to the app.
@@ -146,23 +163,37 @@ func appAddMethod(method string) lue.Fun {
 // appStart starts the app's listener.
 func appStart(E *lue.Engine) int {
 	app := E.Data(1).(*Application)
-	app.start(app.App)
+	if app.sub {
+		E.L.RaiseError("app start: cannot start a subrouter")
+	}
+	if err := app.c.Start(); err != nil {
+		E.L.RaiseError("app start: %v", err)
+	}
+	return 0
+}
+
+// appStart starts the app's listener.
+func appReload(E *lue.Engine) int {
+	app := E.Data(1).(*Application)
+	if app.sub {
+		E.L.RaiseError("app reload: cannot reload a subrouter")
+	}
+	if err := app.c.Reload(); err != nil {
+		E.L.RaiseError("app reload: %v", err)
+	}
 	return 0
 }
 
 func appStop(E *lue.Engine) int {
 	L := E.L
 	app := E.Data(1).(*Application)
+	if app.sub {
+		E.L.RaiseError("app stop: cannot stop a subrouter")
+	}
 	timeout := float64(L.ToNumber(2))
 	sec := float64(time.Second)
-	if timeout != 0 {
-		if err := app.ShutdownWithTimeout(time.Duration(timeout * sec)); err != nil {
-			L.RaiseError("app stop: %v", err)
-		}
-	} else {
-		if err := app.Shutdown(); err != nil {
-			L.RaiseError("app stop: %v", err)
-		}
+	if err := app.c.Stop(time.Duration(timeout * sec)); err != nil {
+		L.RaiseError("app stop: %v", err)
 	}
 	return 0
 }
@@ -170,6 +201,9 @@ func appStop(E *lue.Engine) int {
 func appSet(E *lue.Engine) int {
 	L := E.L
 	app := E.Data(1).(*Application)
+	if app.sub {
+		E.L.RaiseError("app set: cannot set a subrouter")
+	}
 	key := L.CheckString(2)
 	value := L.CheckAny(3)
 	app.globals[key] = value

@@ -748,10 +748,12 @@ end
 function Ilua:run()
   while true do
     local input = self:get_input()
-    if not input or trim(input) == 'quit' then break end
+    if not input or trim(input) == 'exit' then break end
     self:eval_lua(input)
     rl.saveline(input)
   end
+  
+  app:stop(10)
 
   if self.savef then
     self.savef:close()
@@ -762,7 +764,7 @@ end
 -- "main" from here down
 --
 
-local function quit(code, msg)
+local function exit(code, msg)
   io.stderr:write(msg, '\n')
   os.exit(code)
 end
@@ -809,7 +811,7 @@ if arg then
       i = i + 1
       if i > #arg then
         if not def then
-          quit(-1, "expecting parameter for option '-" .. opt .. "'")
+          exit(-1, "expecting parameter for option '-" .. opt .. "'")
         else
           return def
         end

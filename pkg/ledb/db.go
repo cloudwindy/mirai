@@ -29,19 +29,19 @@ func New(c config.DB) lue.Module {
 		db := L.NewTable()
 		db.RawSetString("sqlpath", lua.LString(c.SQLPath))
 		L.SetFuncs(db, map[string]lua.LGFunction{
-			"loadfile": LoadFile,
-			"query":    lut.Unprotect(query, pdb, 2),
-			"exec":     lut.Unprotect(exec, pdb, 2),
-			"command":  lut.Unprotect(command, pdb, 2),
-			"stmt":     unprotectStmt(stmt, pdb),
-			"close":    lut.Unprotect(close, pdb, 1),
+			"loadsql": LoadSQL,
+			"query":   lut.Unprotect(query, pdb, 2),
+			"exec":    lut.Unprotect(exec, pdb, 2),
+			"command": lut.Unprotect(command, pdb, 2),
+			"stmt":    unprotectStmt(stmt, pdb),
+			"close":   lut.Unprotect(close, pdb, 1),
 		})
 
 		return db
 	}
 }
 
-func LoadFile(L *lua.LState) int {
+func LoadSQL(L *lua.LState) int {
 	db := L.CheckTable(1)
 	name := L.CheckString(2)
 	sqlpath := L.GetField(db, "sqlpath")

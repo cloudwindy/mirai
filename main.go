@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"runtime"
 	"strings"
 	"time"
 
@@ -102,8 +103,6 @@ func main() {
 
 func cliStart(ctx *cli.Context) error {
 	sig := daemon.StopSignal()
-	screen.Clear()
-	screen.MoveTopLeft()
 
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -117,6 +116,9 @@ func cliStart(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
+
+	screen.Clear()
+	screen.MoveTopLeft()
 
 	color.Blue(art.String("Mirai Project"))
 	fmt.Println(" Mirai Server " + Version + " with " + lue.LuaVersion)
@@ -227,6 +229,9 @@ func cliStart(ctx *cli.Context) error {
 	}
 
 	reload := func() error {
+		if runtime.GOOS == "windows" {
+			return errors.New("not supported on windows")
+		}
 		fmt.Print("\n Reloading...")
 
 		fork, err := daemon.Reload(ln, cwd)

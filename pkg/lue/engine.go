@@ -45,7 +45,16 @@ func New(path string, env *lua.LTable) *Engine {
 	L := lua.NewState()
 	lelib.OpenLib(L)
 	L.SetGlobal("env", env)
+	L.SetGlobal("cmd", L.NewFunction(cmd))
 	return &Engine{L: L, path: path, modules: make(map[string]Module)}
+}
+
+func cmd(L *lua.LState) int {
+	os := L.RegisterModule(lua.OsLibName, nil)
+	execute := L.GetField(os, "execute")
+	L.Insert(execute, 1)
+	L.Call(L.GetTop()-1, 1)
+	return 1
 }
 
 // Create a child engine for use in a different goroutine

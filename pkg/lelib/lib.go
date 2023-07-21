@@ -3,6 +3,7 @@ package lelib
 import (
 	"mirai/lib/bcrypt"
 	"mirai/lib/mail"
+	"mirai/lib/odbc"
 	"mirai/lib/pwdchecker"
 	"mirai/lib/readline"
 	"mirai/lib/url"
@@ -41,6 +42,7 @@ func OpenLib(L *lua.LState) {
 func PreloadAll(L *lua.LState) {
 	bcrypt.Preload(L)
 	mail.Preload(L)
+	odbc.Preload(L)
 	pwdchecker.Preload(L)
 	readline.Preload(L)
 	uuid.Preload(L)

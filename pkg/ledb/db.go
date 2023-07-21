@@ -4,9 +4,9 @@ import (
 	"os"
 	"path"
 
+	"mirai/lib/odbc"
 	"mirai/pkg/config"
 	"mirai/pkg/lue"
-	"mirai/pkg/lut"
 
 	lua "github.com/yuin/gopher-lua"
 )
@@ -14,30 +14,25 @@ import (
 func New(c config.DB) lue.Module {
 	return func(E *lue.Engine) lua.LValue {
 		L := E.L
+		L.Pop(odbc.Loader(L))
+		dbc := odbc.Config{
+			Driver:     c.Driver,
+			ConnString: c.Conn,
+			Shared:     true,
+		}
 		// open db in protected mode
-		pdb, err := Open(L, c.Driver, c.Conn)
+		pdb, err := odbc.Open(dbc)
 		if err != nil {
 			L.RaiseError("db open: %v", err)
 		}
-
-		query := L.GetField(pdb, "query").(*lua.LFunction)
-		exec := L.GetField(pdb, "exec").(*lua.LFunction)
-		stmt := L.GetField(pdb, "stmt").(*lua.LFunction)
-		command := L.GetField(pdb, "command").(*lua.LFunction)
-		close := L.GetField(pdb, "close").(*lua.LFunction)
-
-		db := L.NewTable()
-		db.RawSetString("sqlpath", lua.LString(c.SQLPath))
-		L.SetFuncs(db, map[string]lua.LGFunction{
+		mt := L.NewTypeMetatable("db_ud")
+		index := L.GetField(mt, "__index").(*lua.LTable)
+		index.RawSetString("sqlpath", lua.LString(c.SQLPath))
+		L.SetFuncs(index, map[string]lua.LGFunction{
 			"loadsql": LoadSQL,
-			"query":   lut.Unprotect(query, pdb, 2),
-			"exec":    lut.Unprotect(exec, pdb, 2),
-			"command": lut.Unprotect(command, pdb, 2),
-			"stmt":    unprotectStmt(stmt, pdb),
-			"close":   lut.Unprotect(close, pdb, 1),
 		})
 
-		return db
+		return E.Class("db_ud", pdb)
 	}
 }
 
@@ -56,28 +51,4 @@ func LoadSQL(L *lua.LState) int {
 		NRet: 1,
 	}, db, lua.LString(sql))
 	return 1
-}
-
-func unprotectStmt(fn *lua.LFunction, self lua.LValue) lua.LGFunction {
-	stmt := lut.Unprotect(fn, self, 2)
-	return func(L *lua.LState) int {
-		stmt(L)
-
-		// prepared statement
-		pstmt := L.Get(1)
-		query := L.GetField(pstmt, "query").(*lua.LFunction)
-		exec := L.GetField(pstmt, "exec").(*lua.LFunction)
-		close := L.GetField(pstmt, "close").(*lua.LFunction)
-
-		// unprotected prepared statement
-		upstmt := L.NewTable()
-		L.SetFuncs(upstmt, map[string]lua.LGFunction{
-			"query": lut.Unprotect(query, pstmt, 2),
-			"exec":  lut.Unprotect(exec, pstmt, 2),
-			"close": lut.Unprotect(close, pstmt, 1),
-		})
-
-		L.Push(upstmt)
-		return 1
-	}
 }

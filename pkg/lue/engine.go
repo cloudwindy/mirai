@@ -1,6 +1,7 @@
 package lue
 
 import (
+	"context"
 	"sync"
 
 	"mirai/pkg/dir"
@@ -198,6 +199,21 @@ func (e *Engine) Eval(str string) *Engine {
 	if e.err != nil {
 		return e
 	}
+	if err := e.L.DoString(str); err != nil {
+		e.err = err
+		return e
+	}
+	return e
+}
+
+func (e *Engine) EvalWithContext(ctx context.Context, str string) *Engine {
+	if e.parent != nil {
+		panic("Cannot run a child engine.")
+	}
+	if e.err != nil {
+		return e
+	}
+	e.L.SetContext(ctx)
 	if err := e.L.DoString(str); err != nil {
 		e.err = err
 		return e

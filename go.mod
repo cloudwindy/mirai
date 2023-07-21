@@ -7,7 +7,7 @@ require (
 	github.com/chzyer/readline v1.5.1
 	github.com/emersion/go-sasl v0.0.0-20220912192320-0145f2c60ead
 	github.com/emersion/go-smtp v0.17.0
-	github.com/fatih/color v1.7.0
+	github.com/fatih/color v1.15.0
 	github.com/gofiber/contrib/websocket v1.0.1
 	github.com/gofiber/fiber/v2 v2.48.0
 	github.com/gofiber/storage/bbolt v1.3.5
@@ -31,7 +31,7 @@ require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/fasthttp/websocket v1.5.4 // indirect
 	github.com/go-sql-driver/mysql v1.7.1 // indirect
-	github.com/gofiber/utils v1.0.1 // indirect
+	github.com/gofiber/utils v1.1.0 // indirect
 	github.com/klauspost/compress v1.16.7 // indirect
 	github.com/lib/pq v1.10.9 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect

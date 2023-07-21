@@ -7,6 +7,7 @@ import (
 	"path"
 	"runtime"
 	"strings"
+	"syscall"
 	"time"
 
 	"mirai/pkg/admin"
@@ -86,8 +87,13 @@ func main() {
 						Aliases: []string{"e"},
 						Usage:   "allow editing",
 					},
+					&cli.PathFlag{
+						Name:  "pidfile",
+						Usage: "file which the child's pid is stored in",
+						Value: path.Join(os.TempDir(), "mirai.pid"),
+					},
 				},
-				Action: cliStart,
+				Action: start,
 			},
 			{
 				Name:  "run",
@@ -101,10 +107,8 @@ func main() {
 	}
 }
 
-func cliStart(ctx *cli.Context) error {
-	sig := daemon.StopSignal()
-
-	cwd, err := os.Getwd()
+func start(ctx *cli.Context) error {
+	wd, err := os.Getwd()
 	if err != nil {
 		return err
 	}
@@ -112,7 +116,57 @@ func cliStart(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	ln, err := daemon.Child(c.Listen)
+
+	if daemon.IsChild() {
+		return worker(ctx, c)
+	}
+
+	pidpath := ctx.Path("pidfile")
+	err = daemon.WritePid(pidpath)
+	if err != nil {
+		return err
+	}
+
+	ln, err := daemon.Forked(c.Listen)
+	if err != nil {
+		return err
+	}
+
+	_, err = daemon.Fork(wd, ln)
+	if err != nil {
+		return err
+	}
+	exit := make(chan bool)
+	handler := func(sig os.Signal) {
+		switch sig {
+		case syscall.SIGHUP:
+			_, err = daemon.Fork(wd, ln)
+			if err != nil {
+				fail(err)
+			}
+		case syscall.SIGTERM:
+			exit <- true
+		}
+	}
+	sigln := daemon.Listen(handler, syscall.SIGHUP, syscall.SIGTERM)
+	<-exit
+	sigln.Close()
+
+	if err := os.Remove(pidpath); err != nil {
+		return err
+	}
+	return nil
+}
+
+func worker(cliCtx *cli.Context, c config.Config) error {
+	sig := daemon.Listen(daemon.ExitHandler, os.Interrupt, syscall.SIGTERM)
+
+	pid, err := daemon.ReadPid(cliCtx.Path("pidfile"))
+	if err != nil {
+		return err
+	}
+
+	ln, err := daemon.Forked(c.Listen)
 	if err != nil {
 		return err
 	}
@@ -214,7 +268,6 @@ func cliStart(ctx *cli.Context) error {
 	}
 
 	engine := lue.New(c.Index, c.Env)
-	exit := make(chan bool)
 
 	start := func() error {
 		fmt.Print("\n Listening at ")
@@ -234,14 +287,11 @@ func cliStart(ctx *cli.Context) error {
 		}
 		fmt.Print("\n Reloading...")
 
-		fork, err := daemon.Reload(ln, cwd)
-		if err != nil {
+		if err := syscall.Kill(pid, syscall.SIGHUP); err != nil {
 			return err
 		}
 
-		fmt.Printf("\n PID %d: Done!\n", fork)
-
-		exit <- true
+		os.Exit(0)
 		return nil
 	}
 
@@ -249,8 +299,8 @@ func cliStart(ctx *cli.Context) error {
 		fmt.Print("\n Shutting down...")
 		defer fmt.Print("\n\n")
 
-		sig := daemon.StopSignal()
-		defer sig.Done()
+		sig := daemon.Listen(daemon.ExitHandler, os.Interrupt, syscall.SIGTERM)
+		defer sig.Close()
 
 		var err error
 		if timeout != 0 {
@@ -283,6 +333,8 @@ func cliStart(ctx *cli.Context) error {
 		return err
 	}
 
+	exit := make(chan bool)
+
 	go func() {
 		engine.Eval(`
 			local params = {
@@ -302,9 +354,9 @@ func cliStart(ctx *cli.Context) error {
 		exit <- true
 	}()
 
-	sig.Done()
+	sig.Close()
 	<-exit
-	app.Server().Shutdown()
+	syscall.Kill(pid, syscall.SIGTERM)
 
 	return nil
 }

@@ -20,5 +20,4 @@ var api = map[string]lua.LGFunction{
 	"encode":    Encode,
 	"decode":    Decode,
 	"normalize": Normalize,
-	"resolve":   URLResolve,
 }

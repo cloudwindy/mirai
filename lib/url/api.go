@@ -3,6 +3,7 @@ package url
 import (
 	"net"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/PuerkitoBio/purell"
@@ -13,9 +14,9 @@ var LTURL = "URL"
 
 func New(L *lua.LState) int {
 	var u *url.URL
-	u = GetURL(L, 1)
+	u = getURL(L, 1)
 	if L.GetTop() > 1 {
-		base := GetURL(L, 2)
+		base := getURL(L, 2)
 		u = base.ResolveReference(u)
 	}
 	obj := L.NewUserData()
@@ -25,7 +26,7 @@ func New(L *lua.LState) int {
 		L.SetFuncs(mt, map[string]lua.LGFunction{
 			"__index":    URLGet,
 			"__newindex": URLSet,
-			"__concat":   URLResolve,
+			"__concat":   URLJoin,
 		})
 	}
 	L.SetMetatable(obj, mt)
@@ -65,7 +66,7 @@ func Decode(L *lua.LState) int {
 }
 
 var URLExports = map[string]lua.LGFunction{
-	"resolve": URLResolve,
+	"resolve": URLJoin,
 }
 
 func URLGet(L *lua.LState) int {
@@ -91,7 +92,11 @@ func URLGet(L *lua.LState) int {
 	case "pathname":
 		L.Push(lua.LString(u.Path))
 	case "port":
-		L.Push(lua.LString(u.Port()))
+		port, err := strconv.Atoi(u.Port())
+		if err != nil {
+			L.RaiseError("url port: %v", err)
+		}
+		L.Push(lua.LNumber(port))
 	case "protocol":
 		L.Push(lua.LString(u.Scheme))
 	case "search":
@@ -117,7 +122,7 @@ func URLGet(L *lua.LState) int {
 func URLSet(L *lua.LState) int {
 	ud := L.CheckUserData(1)
 	k := L.CheckString(2)
-	v := L.CheckString(3)
+	v := L.ToString(3)
 	u := ud.Value.(*url.URL)
 	switch k {
 	case "hash":
@@ -127,7 +132,7 @@ func URLSet(L *lua.LState) int {
 	case "hostname":
 		_, port, err := net.SplitHostPort(u.Host)
 		if err != nil {
-			L.Error(lua.LString(err.Error()), 1)
+			L.RaiseError("url split host port: %v", err)
 		}
 		u.Host = net.JoinHostPort(v, port)
 	case "href":
@@ -157,7 +162,7 @@ func URLSet(L *lua.LState) int {
 	return 0
 }
 
-func URLResolve(L *lua.LState) int {
+func URLJoin(L *lua.LState) int {
 	ud := L.CheckUserData(1)
 	path := L.CheckString(2)
 
@@ -173,7 +178,7 @@ func URLResolve(L *lua.LState) int {
 	return 1
 }
 
-func GetURL(L *lua.LState, n int) *url.URL {
+func getURL(L *lua.LState, n int) *url.URL {
 	if L.GetTop() == 0 {
 		L.ArgError(1, "expected url")
 	}

@@ -46,6 +46,19 @@ func Normalize(L *lua.LState) int {
 	return 1
 }
 
+func Search(L *lua.LState) int {
+	t := L.CheckTable(1)
+	uv := url.Values{}
+
+	L.ForEach(t, func(l1, l2 lua.LValue) {
+		k := lua.LVAsString(l1)
+		v := lua.LVAsString(l2)
+		uv.Set(k, v)
+	})
+	L.Push(lua.LString(uv.Encode()))
+	return 1
+}
+
 func Encode(L *lua.LState) int {
 	s := L.CheckString(1)
 	s = url.QueryEscape(s)

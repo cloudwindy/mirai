@@ -14,6 +14,11 @@ function url.new(input, base) end
 ---@return string
 function url.normalize(input) end
 
+--- 将一个表转换为 URL 参数。
+---@param params table 参数表
+---@return string
+function url.search(params) end
+
 --- 将字符串进行 URI 编码。
 ---@param input string 要编码的字符串
 ---@return string
@@ -72,7 +77,7 @@ URL.search = ""
 
 --- 获取表示网址查询参数的对象。
 ---
---- 该属性是只读的，要替换 URL 的查询参数，请使用 URL.search 设置器。
+--- 该属性是只读的，要替换 URL 的查询参数，请使用 url.search 和 URL.search 设置器。
 ---@type table
 URL.search_params = {}
 

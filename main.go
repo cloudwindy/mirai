@@ -287,7 +287,7 @@ func worker(cliCtx *cli.Context, c config.Config) error {
 		}
 		fmt.Print("\n Reloading...")
 
-		if err := syscall.Kill(pid, syscall.SIGHUP); err != nil {
+		if err := daemon.Kill(pid, syscall.SIGHUP); err != nil {
 			return err
 		}
 
@@ -356,7 +356,7 @@ func worker(cliCtx *cli.Context, c config.Config) error {
 
 	sig.Close()
 	<-exit
-	syscall.Kill(pid, syscall.SIGTERM)
+	daemon.Kill(pid, syscall.SIGTERM)
 
 	return nil
 }

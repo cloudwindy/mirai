@@ -7,7 +7,7 @@ COPY go.mod go.sum ./
 RUN go mod download && go mod verify
 
 COPY . .
-RUN go build -v -o /usr/local/bin/mirai -tags sqlite -ldflags '-s -w' .
+RUN go build -v -o /usr/local/bin/mirai -ldflags '-s -w' .
 
 FROM alpine:latest
 

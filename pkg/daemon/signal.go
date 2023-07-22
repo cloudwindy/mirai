@@ -36,3 +36,11 @@ func (ln SignalListener) Close() {
 func ExitHandler(_ os.Signal) {
 	os.Exit(1)
 }
+
+func Kill(pid int, signal os.Signal) error {
+	proc, err := os.FindProcess(pid)
+	if err != nil {
+		return err
+	}
+	return proc.Signal(signal)
+}

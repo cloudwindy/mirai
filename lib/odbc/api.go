@@ -41,8 +41,6 @@ type dbConfig struct {
 var (
 	knownDrivers     = make(map[string]luaDB, 0)
 	knownDriversLock = &sync.Mutex{}
-	sharedDB         = make(map[string]luaDB, 0)
-	sharedDBLock     = &sync.Mutex{}
 )
 
 // RegisterDriver register sql driver

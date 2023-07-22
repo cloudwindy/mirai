@@ -1,6 +1,3 @@
-//go:build !windows && sqlite
-// +build !windows,sqlite
-
 package odbc
 
 import (

@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"io"
 	"log"
 	"net/http"
 	"net/http/cookiejar"
@@ -222,5 +223,40 @@ func New(L *lua.LState) int {
 	ud.Value = client
 	L.SetMetatable(ud, L.GetTypeMetatable("http_client_ud"))
 	L.Push(ud)
+	return 1
+}
+
+// http_client_ud:do(http_request_ud) returns (response, error)
+//
+//	response: {
+//	  code = http_code (200, 201, ..., 500, ...),
+//	  body = string
+//	  headers = table
+//	}
+func DoRequest(L *lua.LState) int {
+	client := checkClient(L)
+	req := checkRequest(L, 2)
+
+	response, err := client.DoRequest(req.Request)
+	if err != nil {
+		L.RaiseError("%v", err)
+	}
+	defer response.Body.Close()
+	headers := L.NewTable()
+	for k, v := range response.Header {
+		if len(v) > 0 {
+			headers.RawSetString(k, lua.LString(v[0]))
+		}
+	}
+
+	data, err := io.ReadAll(response.Body)
+	if err != nil {
+		L.RaiseError("%v", err)
+	}
+	result := L.NewTable()
+	L.SetField(result, `code`, lua.LNumber(response.StatusCode))
+	L.SetField(result, `body`, lua.LString(string(data)))
+	L.SetField(result, `headers`, headers)
+	L.Push(result)
 	return 1
 }

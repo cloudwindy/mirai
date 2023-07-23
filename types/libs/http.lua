@@ -3,9 +3,17 @@
 ---@class httplib
 http = {}
 
---- 新建 HTTP 客户端。
+--- 新建客户端。
 ---@param config http_Config?
+---@return http_Client
 function http.new(config) end
+
+--- 新建请求。
+---@param verb string 方法
+---@param url string 请求 URL
+---@param body string|userdata? 请求体，可以是一个 io.open 打开的文件
+---@return http_Request
+function http.newreq(verb, url, body) end
 
 ---@class http_Config
 local Config = {}
@@ -18,7 +26,7 @@ Config.proxy = ""
 ---@type number?
 Config.timeout = 0
 
---- 不检查证书。（不推荐）
+--- 不检查证书。*（不推荐）*
 ---@type boolean?
 Config.insecure_ssl = false
 
@@ -41,3 +49,43 @@ Config.headers = {}
 --- 调试模式。
 ---@type boolean?
 Config.debug = false
+
+---@class http_Client
+local Client = {}
+
+--- 执行请求。
+---@param request http_Request
+---@return http_Response
+function Client:doreq(request) end
+
+--- HTTP 响应
+---@class http_Response
+local Response = {}
+
+--- 响应代码。
+---@type number
+Response.code = 0
+
+--- 响应体。
+---@type string
+Response.body = ""
+
+--- 响应头。
+---@type table<string, string>
+Response.headers = {}
+
+--- HTTP 请求
+---@class http_Request
+local Request = {}
+
+--- 设置 Basic Authorization。
+---@param username string 用户名
+---@param password string 密码
+function Request:auth(username, password) end
+
+--- 设置 HTTP 头。
+---@param key string
+---@param value string
+function Request.set(key, value) end
+
+return http

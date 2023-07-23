@@ -19,7 +19,7 @@ func Loader(L *lua.LState) int {
 	http_client_ud := L.NewTypeMetatable(`http_client_ud`)
 	L.SetGlobal(`http_client_ud`, http_client_ud)
 	L.SetField(http_client_ud, "__index", L.SetFuncs(L.NewTable(), map[string]lua.LGFunction{
-		"do": Do,
+		"doreq": DoRequest,
 	}))
 
 	http_request_ud := L.NewTypeMetatable(`http_request_ud`)
@@ -36,7 +36,6 @@ func Loader(L *lua.LState) int {
 }
 
 var api = map[string]lua.LGFunction{
-	"new":     New,
-	"newreq":  NewRequest,
-	"newfreq": NewFileRequest,
+	"new":    New,
+	"newreq": NewRequest,
 }

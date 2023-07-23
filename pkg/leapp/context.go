@@ -3,9 +3,8 @@ package leapp
 import (
 	"strings"
 
-	"mirai/pkg/lazysess"
-	"mirai/pkg/lue"
-
+	"github.com/cloudwindy/mirai/pkg/lazysess"
+	"github.com/cloudwindy/mirai/pkg/lue"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/session"
 	"github.com/vadv/gopher-lua-libs/json"

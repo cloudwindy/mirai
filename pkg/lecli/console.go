@@ -1,8 +1,7 @@
 package lecli
 
 import (
-	"mirai/pkg/lue"
-
+	"github.com/cloudwindy/mirai/pkg/lue"
 	lua "github.com/yuin/gopher-lua"
 )
 

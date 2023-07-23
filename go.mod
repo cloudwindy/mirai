@@ -1,4 +1,4 @@
-module mirai
+module github.com/cloudwindy/mirai
 
 go 1.20
 

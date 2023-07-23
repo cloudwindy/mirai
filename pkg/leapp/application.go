@@ -4,8 +4,7 @@ import (
 	"strings"
 	"time"
 
-	"mirai/pkg/lue"
-
+	"github.com/cloudwindy/mirai/pkg/lue"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/session"
 	"github.com/pkg/errors"

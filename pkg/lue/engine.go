@@ -4,10 +4,9 @@ import (
 	"context"
 	"sync"
 
-	"mirai/pkg/dir"
-	"mirai/pkg/lelib"
-	lutpool "mirai/pkg/lut/pool"
-
+	"github.com/cloudwindy/mirai/pkg/dir"
+	"github.com/cloudwindy/mirai/pkg/lelib"
+	lutpool "github.com/cloudwindy/mirai/pkg/lut/pool"
 	lua "github.com/yuin/gopher-lua"
 )
 

@@ -17,3 +17,5 @@ function bcrypt.hash(password) end
 ---@return boolean
 ---@nodiscard
 function bcrypt.compare(hash, password) end
+
+return bcrypt

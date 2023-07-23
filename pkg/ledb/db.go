@@ -4,10 +4,9 @@ import (
 	"os"
 	"path"
 
-	"mirai/lib/odbc"
-	"mirai/pkg/config"
-	"mirai/pkg/lue"
-
+	"github.com/cloudwindy/mirai/lib/odbc"
+	"github.com/cloudwindy/mirai/pkg/config"
+	"github.com/cloudwindy/mirai/pkg/lue"
 	lua "github.com/yuin/gopher-lua"
 )
 

@@ -1,8 +1,7 @@
 package leapp
 
 import (
-	"mirai/pkg/lue"
-
+	"github.com/cloudwindy/mirai/pkg/lue"
 	"github.com/gofiber/fiber/v2"
 	"github.com/yuin/gluamapper"
 	lua "github.com/yuin/gopher-lua"

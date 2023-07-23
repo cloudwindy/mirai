@@ -3,9 +3,8 @@ package leapp
 import (
 	"time"
 
-	"mirai/pkg/lazysess"
-	"mirai/pkg/lue"
-
+	"github.com/cloudwindy/mirai/pkg/lazysess"
+	"github.com/cloudwindy/mirai/pkg/lue"
 	"github.com/yuin/gluamapper"
 	lua "github.com/yuin/gopher-lua"
 	luar "layeh.com/gopher-luar"

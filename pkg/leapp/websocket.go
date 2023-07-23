@@ -4,8 +4,7 @@ import (
 	"log"
 	"time"
 
-	"mirai/pkg/lue"
-
+	"github.com/cloudwindy/mirai/pkg/lue"
 	"github.com/gofiber/contrib/websocket"
 	"github.com/vadv/gopher-lua-libs/json"
 	lua "github.com/yuin/gopher-lua"

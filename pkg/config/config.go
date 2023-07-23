@@ -4,8 +4,7 @@ import (
 	"io"
 	"os"
 
-	"mirai/pkg/lelib"
-
+	"github.com/cloudwindy/mirai/pkg/lelib"
 	"github.com/yuin/gluamapper"
 	lua "github.com/yuin/gopher-lua"
 )
@@ -31,8 +30,8 @@ type DB struct {
 
 type Limiter struct {
 	Enabled bool
-	Max int
-	Dur int
+	Max     int
+	Dur     int
 }
 
 func Parse(projectDir string) (c Config, err error) {

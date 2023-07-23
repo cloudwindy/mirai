@@ -5,6 +5,8 @@ An expressjs-like high-performance http server framework written in Golang and L
 ## Translation
 If you're interested in translating README and documents, start an issue!
 
+按理来说 README 应该写英文版，但是我没有时间进行翻译工作，如能帮助将不胜感谢。
+
 ## 简介
 
 Mirai 服务器的设计基本参考了 express.js，以请求方法、路径和处理器组成路由，并按顺序执行。
@@ -14,7 +16,7 @@ app:get('/', function(ctx)
 end)
 app:start()
 ```
-在这个例子中，定义了一个方法为```GET```，路径为```/```，处理器为```function(ctx) ctx:send('ok') end```的路由和中间件。之后调用了```app:start()```，服务器以非阻塞的方式开始运行，代码结束。（以下省略```app:start()```）
+在这个例子中，定义了一个方法为```GET```，路径为```/```，处理器为```function(ctx) ctx:send('ok') end```的路由。之后调用了```app:start()```，服务器以非阻塞的方式开始运行，代码结束。（以下省略```app:start()```）
 
 在收到请求后，会从第一个路由或中间件开始尝试匹配，如果匹配则执行，如果不匹配跳过。
 
@@ -56,7 +58,7 @@ end)
 
 由于处理器会运行在与主线程不同的环境，所以在处理器内不能访问由全局环境创建的任何变量。如果一定要访问，请用```app:set()```设置传递。但是，由于不同的线程同时访问某一变量可能引起数据竞争，即使设置了传递值也不能在运行中改变。
 
-```
+```lua
 counter = 0
 -- 如果不设置传递，在下文中访问 counter 会直接报错。
 app:set('counter', counter)

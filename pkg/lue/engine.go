@@ -160,11 +160,8 @@ func (e *Engine) Arguments() []lua.LValue {
 func (e *Engine) Register(name string, module Module) *Engine {
 	e.Lock()
 	defer e.Unlock()
-	e.modules[name] = module
-	if e.parent != nil {
-		e.parent.Lock()
-		e.parent.L.SetGlobal(name, module(e.parent))
-		e.parent.Unlock()
+	if e.parent == nil {
+		e.modules[name] = module
 	}
 	e.L.SetGlobal(name, module(e))
 	return e

@@ -57,6 +57,16 @@ func NewRequest(L *lua.LState) int {
 	return 1
 }
 
+// http.req(verb, url, body) returns response
+func Request(L *lua.LState) int {
+	NewRequest(L)
+	req := L.Get(-1)
+	cli := GetDefaultClient(L)
+	L.Pop(L.GetTop())
+	L.Push(cli)
+	L.Push(req)
+	return DoRequest(L)
+}
 
 // request:auth(username, password)
 func Auth(L *lua.LState) int {

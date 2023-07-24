@@ -33,7 +33,6 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/requestid"
 	"github.com/gofiber/fiber/v2/middleware/session"
 	sbolt "github.com/gofiber/storage/bbolt"
-	"github.com/inancgumus/screen"
 	"github.com/pkg/errors"
 	"github.com/urfave/cli/v2"
 	"github.com/zs5460/art"
@@ -52,10 +51,10 @@ var (
 		"warn": warn,
 		"fail": fail,
 	}
-	succ = color.New(color.FgGreen).PrintFunc()
-	info = color.New(color.FgBlue).PrintFunc()
-	warn = color.New(color.FgHiYellow).PrintFunc()
-	fail = color.New(color.FgHiRed).PrintFunc()
+	succ = color.New(color.FgGreen).PrintfFunc()
+	info = color.New(color.FgBlue).PrintfFunc()
+	warn = color.New(color.FgYellow).PrintfFunc()
+	fail = color.New(color.FgRed).PrintfFunc()
 	//go:embed ilua.lua
 	ilua string
 )
@@ -141,7 +140,7 @@ func start(ctx *cli.Context) error {
 		case syscall.SIGHUP:
 			_, err = daemon.Fork(wd, ln)
 			if err != nil {
-				fail(err)
+				fail("%v", err)
 			}
 		case syscall.SIGTERM:
 			exit <- true
@@ -170,9 +169,6 @@ func worker(cliCtx *cli.Context, c config.Config) error {
 		return err
 	}
 
-	screen.Clear()
-	screen.MoveTopLeft()
-
 	color.Blue(art.String("Mirai Project"))
 	fmt.Println(" Mirai Server " + Version + " with " + lue.LuaVersion)
 	fmt.Println(" Fiber " + fiber.Version)
@@ -196,7 +192,12 @@ func worker(cliCtx *cli.Context, c config.Config) error {
 		})).
 		Use(cors.New()).
 		Use(compress.New()).
-		Use(pprof.New())
+		Use(pprof.New()).
+		Use(func(c *fiber.Ctx) error {
+			// set before next to allow modifying
+			c.Set("Server", "mirai")
+			return c.Next()
+		})
 
 	apigrp := app.Group("/api")
 	if l := c.Limiter; l.Enabled {
@@ -266,7 +267,7 @@ func worker(cliCtx *cli.Context, c config.Config) error {
 			})
 	}
 
-	engine := lue.New(c.Index, c.Env)
+	G := lue.New(c.Index, c.Env)
 
 	start := func() error {
 		fmt.Print("\n Listening at ")
@@ -321,21 +322,20 @@ func worker(cliCtx *cli.Context, c config.Config) error {
 		Reload: reload,
 		Stop:   stop,
 	}
-	engine.
-		Register("app", leapp.New(capp)).
+	G.Register("app", leapp.New(capp)).
 		Register("db", ledb.New(c.DB)).
 		Register("cli", lecli.New(colors)).
 		Run().
 		Eval(ilua)
 
-	if err := engine.Err(); err != nil {
+	if err := G.Err(); err != nil {
 		return err
 	}
 
 	exit := make(chan bool)
 
 	go func() {
-		engine.Eval(`
+		G.Eval(`
 			local params = {
 				prompt = '> ',
 				prompt2 = '  ',
@@ -346,8 +346,8 @@ func worker(cliCtx *cli.Context, c config.Config) error {
 			ilua:run()
 		`)
 
-		if err := engine.Err(); err != nil {
-			fail(err)
+		if err := G.Err(); err != nil {
+			fail("%v", err)
 		}
 
 		exit <- true

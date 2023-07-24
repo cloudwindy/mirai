@@ -37,7 +37,7 @@ Context.headers = {}
 Context.params = {}
 
 --- 请求 Cookies
----@type table<string, Cookie?>
+---@type Cookies
 Context.cookies = {}
 
 --- 请求参数

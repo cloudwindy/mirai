@@ -3,6 +3,13 @@
 ---@class httplib
 http = {}
 
+--- 发送请求。
+---@param verb string 方法
+---@param url string 请求 URL
+---@param body string|userdata? 请求体，字符串或者 io.open 打开的文件
+---@return http_Response
+function http.req(verb, url, body) end
+
 --- 新建客户端。
 ---@param config http_Config?
 ---@return http_Client
@@ -11,7 +18,7 @@ function http.new(config) end
 --- 新建请求。
 ---@param verb string 方法
 ---@param url string 请求 URL
----@param body string|userdata? 请求体，可以是一个 io.open 打开的文件
+---@param body string|userdata? 请求体，字符串或者 io.open 打开的文件
 ---@return http_Request
 function http.newreq(verb, url, body) end
 

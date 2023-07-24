@@ -226,6 +226,19 @@ func New(L *lua.LState) int {
 	return 1
 }
 
+func GetDefaultClient(L *lua.LState) lua.LValue {
+	dc := L.GetGlobal("http_default_client")
+	if dc != lua.LNil {
+		return dc
+	}
+	ud := L.NewUserData()
+	ud.Value = &LuaClient{Client: &http.Client{Timeout: DefaultTimeout}, userAgent: DefaultUserAgent}
+	L.SetMetatable(ud, L.GetTypeMetatable("http_client_ud"))
+
+	L.SetGlobal("http_default_client", ud)
+	return ud
+}
+
 // http_client_ud:do(http_request_ud) returns (response, error)
 //
 //	response: {

@@ -17,13 +17,11 @@ func Preload(L *lua.LState) {
 // Loader is the module loader function.
 func Loader(L *lua.LState) int {
 	http_client_ud := L.NewTypeMetatable(`http_client_ud`)
-	L.SetGlobal(`http_client_ud`, http_client_ud)
 	L.SetField(http_client_ud, "__index", L.SetFuncs(L.NewTable(), map[string]lua.LGFunction{
 		"doreq": DoRequest,
 	}))
 
 	http_request_ud := L.NewTypeMetatable(`http_request_ud`)
-	L.SetGlobal(luaRequestType, http_request_ud)
 	L.SetField(http_request_ud, "__index", L.SetFuncs(L.NewTable(), map[string]lua.LGFunction{
 		"auth": Auth,
 		"set":  Set,
@@ -38,4 +36,5 @@ func Loader(L *lua.LState) int {
 var api = map[string]lua.LGFunction{
 	"new":    New,
 	"newreq": NewRequest,
+	"req":    Request,
 }

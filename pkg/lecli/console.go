@@ -2,47 +2,45 @@ package lecli
 
 import (
 	"github.com/cloudwindy/mirai/pkg/lue"
+	"github.com/inancgumus/screen"
 	lua "github.com/yuin/gopher-lua"
 )
 
-type Print func(a ...any)
-
-type Console struct {
-	colors map[string]Print
-}
-
-func checkCli(L *lua.LState, n int) *Console {
-	ud := L.CheckUserData(n)
-	cli, ok := ud.Value.(*Console)
-	if !ok {
-		L.ArgError(n, "expected type Console")
-	}
-	return cli
-}
+type Print func(format string, a ...any)
 
 func New(colors map[string]Print) lue.Module {
 	return func(E *lue.Engine) lua.LValue {
 		L := E.L
-		reg := L.NewTable()
+		cli := L.NewTable()
 
 		regFuncs := map[string]lua.LGFunction{}
-		for name := range colors {
-			regFuncs[name] = colorMethod(name)
+		for name, p := range colors {
+			regFuncs[name] = colorMethod(p)
 		}
-		L.SetFuncs(reg, regFuncs)
+		L.SetFuncs(cli, regFuncs)
 
-		return reg
+		E.SetFuncs(cli, map[string]lue.Fun{
+			"clear": clear,
+		})
+
+		return cli
 	}
 }
 
-func colorMethod(name string) lua.LGFunction {
+func colorMethod(p Print) lua.LGFunction {
 	return func(L *lua.LState) int {
-		cli := checkCli(L, 1)
+		format := L.CheckString(1)
 		str := make([]any, 0, L.GetTop()-1)
-		for i := 1; i <= L.GetTop(); i++ {
-			str = append(str, L.ToString(i))
+		for i := 2; i <= L.GetTop(); i++ {
+			str = append(str, L.ToStringMeta(L.Get(i)).String())
 		}
-		cli.colors[name](str...)
+		p(format, str...)
 		return 0
 	}
+}
+
+func clear(E *lue.Engine) int {
+	screen.Clear()
+	screen.MoveTopLeft()
+	return 0
 }

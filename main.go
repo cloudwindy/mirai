@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path"
-	"runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -124,6 +123,7 @@ func start(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
+	defer os.Remove(pidpath)
 
 	ln, err := daemon.Forked(c.Listen)
 	if err != nil {
@@ -138,8 +138,7 @@ func start(ctx *cli.Context) error {
 	handler := func(sig os.Signal) {
 		switch sig {
 		case syscall.SIGHUP:
-			_, err = daemon.Fork(wd, ln)
-			if err != nil {
+			if _, err := daemon.Fork(wd, ln); err != nil {
 				fail("%v", err)
 			}
 		case syscall.SIGTERM:
@@ -150,9 +149,6 @@ func start(ctx *cli.Context) error {
 	<-exit
 	sigln.Close()
 
-	if err := os.Remove(pidpath); err != nil {
-		return err
-	}
 	return nil
 }
 
@@ -282,10 +278,7 @@ func worker(cliCtx *cli.Context, c config.Config) error {
 	}
 
 	reload := func() error {
-		if runtime.GOOS == "windows" {
-			return errors.New("not supported on windows")
-		}
-		fmt.Print("\n Reloading...")
+		fmt.Println("\n Reloading...")
 
 		if err := daemon.Kill(pid, syscall.SIGHUP); err != nil {
 			return err

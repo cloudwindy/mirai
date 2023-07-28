@@ -75,7 +75,8 @@ func appHandlerAsync(E *lue.Engine, app *Application, fn *lua.LFunction) fiber.H
 	return func(c *fiber.Ctx) error {
 		E, _ := E.New()
 		defer E.Close()
-		if err := E.CallLFun(fn, 1, NewContext(E, app, c)); err != nil {
+		env := E.Table(lua.EnvironIndex)
+		if err := E.CallLFun(fn, env, 0, NewContext(E, app, c)); err != nil {
 			return errWithStackTrace(err, c)
 		}
 		return nil

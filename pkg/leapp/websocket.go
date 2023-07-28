@@ -19,7 +19,8 @@ func wsAppUpgrade(E *lue.Engine) int {
 		defer c.Close()
 		E, _ := E.New()
 		defer E.Close()
-		if err := E.CallLFun(handler, 0, NewWsContext(E, c)); err != nil {
+		env := E.Table(lua.EnvironIndex)
+		if err := E.CallLFun(handler, env, 0, NewWsContext(E, c)); err != nil {
 			log.Println()
 		}
 	}

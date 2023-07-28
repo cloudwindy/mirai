@@ -2,7 +2,7 @@ package lue
 
 import lua "github.com/yuin/gopher-lua"
 
-func (e *Engine) CallLFun(lf *lua.LFunction, nret int, params ...lua.LValue) error {
+func (e *Engine) CallLFun(lf *lua.LFunction, env *lua.LTable, nret int, params ...lua.LValue) error {
 	nf := *lf
 	lf = &nf
 	e.Clear()

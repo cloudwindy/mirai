@@ -175,7 +175,7 @@ func appStop(E *lue.Engine) int {
 	}
 	timeout := float64(0)
 	if E.Top() > 1 {
-		timeout = E.Number(1)
+		timeout = E.Number(2)
 	}
 	const sec = float64(time.Second)
 	if err := app.c.Stop(time.Duration(timeout * sec)); err != nil {

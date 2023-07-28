@@ -172,8 +172,8 @@ func worker(ctx *cli.Context, c config.Config) error {
 
 	if ctx.Bool("banner") {
 		color.Blue(art.String("Mirai Project"))
-		fmt.Printf(" Mirai Server %s with Lua %s\n", Version, lue.LuaVersion)
-		fmt.Printf(" Fiber %s\n\n", fiber.Version)
+		fmt.Printf("Mirai Server %s with Lua %s\n", Version, lue.LuaVersion)
+		fmt.Printf("Fiber %s\n\n", fiber.Version)
 	}
 
 	app := fiber.
@@ -217,7 +217,7 @@ func worker(ctx *cli.Context, c config.Config) error {
 	admingrp := apigrp.Group("/admin")
 	if c.Editing {
 		admingrp.All("/files/*", admin.Files(c.Index))
-		fmt.Print(" Editing: ")
+		fmt.Print("Editing: ")
 		warn("Allowed")
 		fmt.Println()
 	}
@@ -272,7 +272,7 @@ func worker(ctx *cli.Context, c config.Config) error {
 	G := lue.New(c.Index, c.Env)
 
 	start := func() error {
-		fmt.Print("\n Listening at ")
+		fmt.Print("Listening at ")
 		info(c.Listen)
 		fmt.Print("\n\n")
 		go func() {
@@ -291,7 +291,7 @@ func worker(ctx *cli.Context, c config.Config) error {
 		}
 		defer daemon.Kill(pid, syscall.SIGTERM)
 		reload = func() error {
-			fmt.Println("\n Reloading...")
+			fmt.Println("Reloading...")
 
 			if err := daemon.Kill(pid, syscall.SIGHUP); err != nil {
 				return err
@@ -303,8 +303,8 @@ func worker(ctx *cli.Context, c config.Config) error {
 	}
 
 	stop := func(timeout time.Duration) error {
-		fmt.Print("\n Shutting down...")
-		defer fmt.Print("\n\n")
+		fmt.Print("Shutting down...")
+		defer fmt.Print("\n")
 
 		sig := daemon.Listen(daemon.ExitHandler, os.Interrupt, syscall.SIGTERM)
 		defer sig.Close()

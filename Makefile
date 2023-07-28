@@ -1,9 +1,8 @@
-.PHONY: all tidy build windows clean run docker
+.PHONY: all tidy build install windows clean run docker
 
 OUT = mirai
 LDFLAGS = -s -w
 GOFLAGS = -ldflags '$(LDFLAGS)'
-export GOARCH = amd64
 export CGO_ENABLED = 1
 
 all: tidy build
@@ -12,8 +11,11 @@ tidy:
 	go mod vendor
 build:
 	go build -o "$(OUT)" $(GOFLAGS)
+install:
+	go install $(GOFLAGS)
 windows:
 	GOOS=windows \
+	GOARCH=amd64 \
 	CC=x86_64-w64-mingw32-gcc \
 	go build -o "$(OUT).exe" $(GOFLAGS)
 clean:

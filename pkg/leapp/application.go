@@ -159,6 +159,9 @@ func appReload(E *lue.Engine) int {
 	if app.sub {
 		E.Error("app reload: cannot reload a subrouter")
 	}
+	if app.c.Reload == nil {
+		E.Error("app reload: not supported")
+	}
 	if err := app.c.Reload(); err != nil {
 		E.Error("app reload: %v", err)
 	}

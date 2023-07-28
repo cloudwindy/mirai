@@ -40,7 +40,8 @@ import (
 
 // Package info
 const (
-	Version = "1.2"
+	Version    = "1.2"
+	ServerName = "mirai/" + Version
 )
 
 // Color helper functions
@@ -85,6 +86,10 @@ func main() {
 						Aliases: []string{"e"},
 						Usage:   "allow editing",
 					},
+					&cli.BoolFlag{
+						Name:  "banner",
+						Usage: "show banner",
+					},
 					&cli.PathFlag{
 						Name:  "pidfile",
 						Usage: "file which the child's pid is stored in",
@@ -110,12 +115,13 @@ func start(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
+	
 	c, err := config.Parse(ctx.Path("proj"))
 	if err != nil {
 		return err
 	}
 
-	if daemon.IsChild() {
+	if daemon.IsChild() || runtime.GOOS == "windows" {
 		return worker(ctx, c)
 	}
 
@@ -156,7 +162,7 @@ func start(ctx *cli.Context) error {
 	return nil
 }
 
-func worker(cliCtx *cli.Context, c config.Config) error {
+func worker(ctx *cli.Context, c config.Config) error {
 	sig := daemon.Listen(daemon.ExitHandler, os.Interrupt, syscall.SIGTERM)
 
 	ln, err := daemon.Forked(c.Listen)
@@ -164,10 +170,11 @@ func worker(cliCtx *cli.Context, c config.Config) error {
 		return err
 	}
 
-	color.Blue(art.String("Mirai Project"))
-	fmt.Println(" Mirai Server " + Version + " with " + lue.LuaVersion)
-	fmt.Println(" Fiber " + fiber.Version)
-	fmt.Println()
+	if ctx.Bool("banner") {
+		color.Blue(art.String("Mirai Project"))
+		fmt.Printf(" Mirai Server %s with Lua %s\n", Version, lue.LuaVersion)
+		fmt.Printf(" Fiber %s\n\n", fiber.Version)
+	}
 
 	app := fiber.
 		New(fiber.Config{
@@ -278,7 +285,7 @@ func worker(cliCtx *cli.Context, c config.Config) error {
 
 	var reload func() error
 	if runtime.GOOS != "windows" {
-		pid, err := daemon.ReadPid(cliCtx.Path("pidfile"))
+		pid, err := daemon.ReadPid(ctx.Path("pidfile"))
 		if err != nil {
 			return err
 		}

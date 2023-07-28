@@ -4,7 +4,6 @@ import (
 	"net"
 	"os"
 	"os/exec"
-	"runtime"
 	"strconv"
 )
 
@@ -13,10 +12,6 @@ const (
 )
 
 func Fork(wd string, ln *net.TCPListener) (ok bool, err error) {
-	// do not fork on windows
-	if runtime.GOOS == "windows" {
-		return
-	}
 	ex, err := os.Executable()
 	if err != nil {
 		return

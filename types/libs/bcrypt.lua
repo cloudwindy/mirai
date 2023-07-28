@@ -1,7 +1,7 @@
 ---@meta
 
 ---@class bcryptlib
-bcrypt = {}
+local bcrypt = {}
 
 --- 生成密码的 bcrypt 哈希。
 ---

@@ -1,7 +1,7 @@
 ---@meta
 
 ---@class httplib
-http = {}
+local http = {}
 
 --- 发送请求。
 ---@param verb string 方法

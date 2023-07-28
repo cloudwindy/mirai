@@ -1,7 +1,7 @@
 ---@meta
 
 ---@class uuidlib
-uuid = {}
+local uuid = {}
 
 --- 生成一个随机 UUID。
 ---@return string

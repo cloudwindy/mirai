@@ -1,7 +1,7 @@
 ---@meta
 
 ---@class uuidlib
-url = {}
+local url = {}
 
 --- 解析 URL。
 ---@param input string 要解析的绝对或相对的输入网址。

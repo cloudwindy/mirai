@@ -1,7 +1,7 @@
 ---@meta
 
 ---@class jsonlib
-json = {}
+local json = {}
 
 --- 将一个 Lua 值转换为 JSON 字符串。
 ---

@@ -1,7 +1,7 @@
 ---@meta
 
 ---@class maillib
-mail = {}
+local mail = {}
 
 --- 发送邮件。
 ---@param uri string SMTP 服务器

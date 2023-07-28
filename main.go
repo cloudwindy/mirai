@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -130,9 +131,12 @@ func start(ctx *cli.Context) error {
 		return err
 	}
 
-	_, err = daemon.Fork(wd, ln)
+	ok, err := daemon.Fork(wd, ln)
 	if err != nil {
 		return err
+	}
+	if !ok {
+		return worker(ctx, c)
 	}
 	exit := make(chan bool)
 	handler := func(sig os.Signal) {
@@ -278,6 +282,9 @@ func worker(cliCtx *cli.Context, c config.Config) error {
 	}
 
 	reload := func() error {
+		if runtime.GOOS == "windows" {
+			return errors.New("not supported on windows")
+		}
 		fmt.Println("\n Reloading...")
 
 		if err := daemon.Kill(pid, syscall.SIGHUP); err != nil {

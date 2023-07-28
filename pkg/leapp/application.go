@@ -1,7 +1,6 @@
 package leapp
 
 import (
-	"strings"
 	"time"
 
 	"github.com/cloudwindy/mirai/pkg/lue"
@@ -31,9 +30,8 @@ type Config struct {
 }
 
 type Application struct {
-	c       Config
-	sub     bool
-	globals map[string]lua.LValue
+	c   Config
+	sub bool
 	fiber.Router
 }
 
@@ -43,53 +41,41 @@ func New(c Config) lue.Module {
 		// Create a new Fiber app
 		app := new(Application)
 		app.Router = c.App
-		app.globals = make(map[string]lua.LValue)
 		app.c = c
 
 		// Set up the app functions
-		index := E.L.NewTable()
-		E.SetFuncs(index, map[string]lue.Fun{
-			"start":   appStart,
-			"reload":  appReload,
-			"stop":    appStop,
-			"set":     appSet,
-			"sub":     appSub,
-			"use":     appUse,
-			"add":     appAdd,
-			"all":     appAddMethod(methodAll),
-			"get":     appAddMethod(fiber.MethodGet),
-			"head":    appAddMethod(fiber.MethodHead),
-			"post":    appAddMethod(fiber.MethodPost),
-			"put":     appAddMethod(fiber.MethodPut),
-			"delete":  appAddMethod(fiber.MethodDelete),
-			"connect": appAddMethod(fiber.MethodConnect),
-			"options": appAddMethod(fiber.MethodOptions),
-			"trace":   appAddMethod(fiber.MethodTrace),
-			"patch":   appAddMethod(fiber.MethodPatch),
-			"upgrade": wsAppUpgrade,
-		})
+		index := E.NewTable()
+		E.SetFuncs(index, appExports)
 
 		return E.Class(LTApplication, app, index)
 	}
 }
 
+var appExports = map[string]lue.Fun{
+	"start":   appStart,
+	"reload":  appReload,
+	"stop":    appStop,
+	"sub":     appSub,
+	"use":     appUse,
+	"add":     appAdd,
+	"all":     appAddMethod(methodAll),
+	"get":     appAddMethod(fiber.MethodGet),
+	"head":    appAddMethod(fiber.MethodHead),
+	"post":    appAddMethod(fiber.MethodPost),
+	"put":     appAddMethod(fiber.MethodPut),
+	"delete":  appAddMethod(fiber.MethodDelete),
+	"connect": appAddMethod(fiber.MethodConnect),
+	"options": appAddMethod(fiber.MethodOptions),
+	"trace":   appAddMethod(fiber.MethodTrace),
+	"patch":   appAddMethod(fiber.MethodPatch),
+	"upgrade": wsAppUpgrade,
+}
+
 func appHandlerAsync(E *lue.Engine, app *Application, fn *lua.LFunction) fiber.Handler {
-	// cannot pass upvalues to function
-	if len(fn.Upvalues) > 0 {
-		values := []string{}
-		for _, v := range fn.Upvalues {
-			values = append(values, v.Value().String())
-		}
-		E.L.RaiseError("cannot use passed values: %s", strings.Join(values, ", "))
-	}
 	return func(c *fiber.Ctx) error {
 		E, _ := E.New()
 		defer E.Close()
-		env := E.L.CheckTable(lua.EnvironIndex)
-		for k, v := range app.globals {
-			env.RawSetString(k, v)
-		}
-		if err := E.CallLFun(fn, 1, env, NewContext(E, app, c)); err != nil {
+		if err := E.CallLFun(fn, 1, NewContext(E, app, c)); err != nil {
 			return errWithStackTrace(err, c)
 		}
 		return nil
@@ -97,23 +83,21 @@ func appHandlerAsync(E *lue.Engine, app *Application, fn *lua.LFunction) fiber.H
 }
 
 func appSub(E *lue.Engine) int {
-	L := E.L
 	app := E.Data(1).(*Application)
-	prefix := L.CheckString(2)
+	prefix := E.String(2)
 	subapp := new(Application)
 	subapp.Router = app.Group(prefix)
 	subapp.sub = true
-	L.Push(E.Class(LTApplication, subapp))
+	E.Push(E.Class(LTApplication, subapp))
 	return 1
 }
 
 // appUse adds middleware to the app.
 func appUse(E *lue.Engine) int {
-	L := E.L
 	app := E.Data(1).(*Application)
 	var values []interface{}
-	for i := 2; i <= L.GetTop(); i++ {
-		switch val := L.CheckAny(i).(type) {
+	for i := 2; i <= E.Top(); i++ {
+		switch val := E.Get(i).(type) {
 		case lua.LString:
 			values = append(values, string(val))
 		case *lua.LTable:
@@ -134,11 +118,10 @@ func appUse(E *lue.Engine) int {
 
 // appAdd adds a route to the app.
 func appAdd(E *lue.Engine) int {
-	L := E.L
 	app := E.Data(1).(*Application)
-	method := L.CheckString(2)
-	path := L.CheckString(3)
-	handler := L.CheckFunction(4)
+	method := E.String(2)
+	path := E.String(3)
+	handler := E.Fun(4)
 	app.Add(method, path, appHandlerAsync(E, app, handler))
 	return 0
 }
@@ -146,10 +129,9 @@ func appAdd(E *lue.Engine) int {
 // appAddMethod adds a route with specified method to the app.
 func appAddMethod(method string) lue.Fun {
 	return func(E *lue.Engine) int {
-		L := E.L
 		app := E.Data(1).(*Application)
-		path := L.CheckString(2)
-		handler := L.CheckFunction(3)
+		path := E.String(2)
+		handler := E.Fun(3)
 		if method == methodAll {
 			app.All(path, appHandlerAsync(E, app, handler))
 		} else {
@@ -163,10 +145,10 @@ func appAddMethod(method string) lue.Fun {
 func appStart(E *lue.Engine) int {
 	app := E.Data(1).(*Application)
 	if app.sub {
-		E.L.RaiseError("app start: cannot start a subrouter")
+		E.Error("app start: cannot start a subrouter")
 	}
 	if err := app.c.Start(); err != nil {
-		E.L.RaiseError("app start: %v", err)
+		E.Error("app start: %v", err)
 	}
 	return 0
 }
@@ -175,37 +157,27 @@ func appStart(E *lue.Engine) int {
 func appReload(E *lue.Engine) int {
 	app := E.Data(1).(*Application)
 	if app.sub {
-		E.L.RaiseError("app reload: cannot reload a subrouter")
+		E.Error("app reload: cannot reload a subrouter")
 	}
 	if err := app.c.Reload(); err != nil {
-		E.L.RaiseError("app reload: %v", err)
+		E.Error("app reload: %v", err)
 	}
 	return 0
 }
 
 func appStop(E *lue.Engine) int {
-	L := E.L
 	app := E.Data(1).(*Application)
 	if app.sub {
-		E.L.RaiseError("app stop: cannot stop a subrouter")
+		E.Error("app stop: cannot stop a subrouter")
 	}
-	timeout := float64(L.ToNumber(2))
-	sec := float64(time.Second)
+	timeout := float64(0)
+	if E.Top() > 1 {
+		timeout = E.Number(1)
+	}
+	const sec = float64(time.Second)
 	if err := app.c.Stop(time.Duration(timeout * sec)); err != nil {
-		L.RaiseError("app stop: %v", err)
+		E.Error("app stop: %v", err)
 	}
-	return 0
-}
-
-func appSet(E *lue.Engine) int {
-	L := E.L
-	app := E.Data(1).(*Application)
-	if app.sub {
-		E.L.RaiseError("app set: cannot set a subrouter")
-	}
-	key := L.CheckString(2)
-	value := L.CheckAny(3)
-	app.globals[key] = value
 	return 0
 }
 

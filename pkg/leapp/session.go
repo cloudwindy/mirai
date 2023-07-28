@@ -18,11 +18,7 @@ type Session struct {
 func NewSession(E *lue.Engine, s lazysess.Session) lua.LValue {
 	sess := new(Session)
 	sess.Session = s
-	sess.index = E.MapFuncs(map[string]lue.Fun{
-		"keys":    sessKeys,
-		"save":    sessSave,
-		"destroy": sessDestroy,
-	})
+	sess.index = E.MapFuncs(sessExports)
 
 	index := E.LFun(sessIndex)
 	newIndex := E.LFun(sessNewIndex)
@@ -30,28 +26,32 @@ func NewSession(E *lue.Engine, s lazysess.Session) lua.LValue {
 	return E.Anonymous(sess, index, newIndex)
 }
 
+var sessExports = map[string]lue.Fun{
+	"keys":    sessKeys,
+	"save":    sessSave,
+	"destroy": sessDestroy,
+}
+
 func sessIndex(E *lue.Engine) int {
-	L := E.L
 	s := E.Data(1).(*Session)
-	key := L.CheckString(2)
+	key := E.String(2)
 	if v, ok := s.index[key]; ok {
-		L.Push(v)
+		E.Push(v)
 	} else {
 		value := s.Get(key)
-		L.Push(luar.New(L, value))
+		E.Push(luar.New(E.L, value))
 	}
 	return 1
 }
 
 func sessNewIndex(E *lue.Engine) int {
-	L := E.L
 	s := E.Data(1).(*Session)
-	key := L.CheckString(2)
-	if L.Get(3) == lua.LNil {
+	key := E.String(2)
+	if E.Get(3) == lua.LNil {
 		s.Delete(key)
 		return 0
 	}
-	value := L.Get(4)
+	value := E.Get(4)
 	goval := gluamapper.ToGoValue(value, gluamapper.Option{
 		NameFunc: func(s string) string { return s },
 	})
@@ -60,34 +60,31 @@ func sessNewIndex(E *lue.Engine) int {
 }
 
 func sessKeys(E *lue.Engine) int {
-	L := E.L
 	s := E.Data(1).(*Session)
-	k := L.NewTable()
+	k := E.NewTable()
 	for _, key := range s.Keys() {
 		k.Append(lua.LString(key))
 	}
-	L.Push(k)
+	E.Push(k)
 	return 1
 }
 
 func sessSave(E *lue.Engine) int {
-	L := E.L
 	s := E.Data(1).(*Session)
-	t := L.ToNumber(2)
-	if t != 0 {
+	if E.Top() > 1 {
+		t := E.Number(2)
 		s.SetExpiry(time.Duration(t) * time.Hour)
 	}
 	if err := s.Save(); err != nil {
-		L.RaiseError("session save: %v", err)
+		E.Error("session save: %v", err)
 	}
 	return 0
 }
 
 func sessDestroy(E *lue.Engine) int {
-	L := E.L
 	s := E.Data(1).(*Session)
 	if err := s.Destroy(); err != nil {
-		L.RaiseError("session clear: %v", err)
+		E.Error("session clear: %v", err)
 	}
 	return 0
 }

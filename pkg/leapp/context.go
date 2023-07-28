@@ -18,13 +18,11 @@ type Context struct {
 
 // NewContext creates a new Lua table representing the Fiber context.
 func NewContext(E *lue.Engine, app *Application, fc *fiber.Ctx) lua.LValue {
-	L := E.L
-
 	c := new(Context)
 	c.Ctx = fc
 	c.store = app.c.Store
 
-	index := L.NewTable()
+	index := E.NewTable()
 
 	E.SetDict(index, map[string]string{
 		"id":     c.Locals("requestid").(string),
@@ -41,14 +39,16 @@ func NewContext(E *lue.Engine, app *Application, fc *fiber.Ctx) lua.LValue {
 		"state":   ctxState(E, c),
 		"sess":    ctxSession(E, c),
 	})
-	E.SetFuncs(index, map[string]lue.Fun{
-		"type":  ctxType,
-		"send":  ctxSend,
-		"redir": ctxRedir,
-		"next":  ctxNext,
-	})
+	E.SetFuncs(index, ctxExports)
 
 	return E.Anonymous(c, index)
+}
+
+var ctxExports = map[string]lue.Fun{
+	"type":  ctxType,
+	"send":  ctxSend,
+	"redir": ctxRedir,
+	"next":  ctxNext,
 }
 
 func ctxUrl(c *Context) string {
@@ -78,7 +78,7 @@ func ctxCookies(E *lue.Engine, c *Context) lua.LValue {
 }
 
 func ctxQuery(E *lue.Engine, c *Context) lua.LValue {
-	query := E.L.NewTable()
+	query := E.NewTable()
 	q := c.Context().QueryArgs()
 	q.VisitAll(func(key, value []byte) {
 		query.RawSetString(string(key), lua.LString(value))
@@ -106,27 +106,25 @@ func ctxSession(E *lue.Engine, c *Context) lua.LValue {
 }
 
 func ctxType(E *lue.Engine) int {
-	L := E.L
 	c := E.Data(1).(*Context)
-	if L.GetTop() > 2 {
-		c.Type(L.CheckString(2), L.CheckString(3))
+	if E.Top() > 2 {
+		c.Type(E.String(2), E.String(3))
 	} else {
-		c.Type(L.CheckString(2))
+		c.Type(E.String(2))
 	}
 	return 0
 }
 
 func ctxSend(E *lue.Engine) int {
 	var bodyLua lua.LValue
-	L := E.L
 	c := E.Data(1).(*Context)
 	status := 200
 	bodyStr := ""
-	if L.GetTop() > 2 {
-		status = L.CheckInt(2)
-		bodyLua = L.CheckAny(3)
+	if E.Top() > 2 {
+		status = E.Int(2)
+		bodyLua = E.Get(3)
 	} else {
-		bodyLua = L.CheckAny(2)
+		bodyLua = E.Get(2)
 	}
 	switch body := bodyLua.(type) {
 	case lua.LString:
@@ -136,28 +134,27 @@ func ctxSend(E *lue.Engine) int {
 	case *lua.LTable:
 		bodyBytes, err := json.ValueEncode(body)
 		if err != nil {
-			L.RaiseError("http send json: %v", err)
+			E.Error("http send json: %v", err)
 		}
 		bodyStr = string(bodyBytes)
 	default:
-		L.RaiseError("http send: unexpected type %s", body.Type().String())
+		E.Error("http send: unexpected type %s", body.Type().String())
 	}
 	if err := c.Status(status).SendString(bodyStr); err != nil {
-		L.RaiseError("http send: %v", err)
+		E.Error("http send: %v", err)
 	}
 	return 0
 }
 
 func ctxRedir(E *lue.Engine) int {
-	L := E.L
 	c := E.Data(1).(*Context)
 	status := 302
 	loc := ""
-	if L.GetTop() > 2 {
-		status = L.CheckInt(2)
-		loc = L.CheckString(3)
+	if E.Top() > 2 {
+		status = E.Int(2)
+		loc = E.String(3)
 	} else {
-		loc = L.CheckString(2)
+		loc = E.String(2)
 	}
 	c.Status(status).Location(loc)
 	return 0
@@ -166,7 +163,7 @@ func ctxRedir(E *lue.Engine) int {
 func ctxNext(E *lue.Engine) int {
 	c := E.Data(1).(*Context)
 	if err := c.Next(); err != nil {
-		E.L.RaiseError("next: %v", err)
+		E.Error("next: %v", err)
 	}
 	return 0
 }

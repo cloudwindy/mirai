@@ -1,16 +1,17 @@
 package lue
 
-import lua "github.com/yuin/gopher-lua"
+import (
+	lua "github.com/yuin/gopher-lua"
+)
+
+func (e *Engine) NewTable() *lua.LTable {
+	return e.L.NewTable()
+}
 
 func (e *Engine) NewData(val interface{}) lua.LValue {
 	ud := e.L.NewUserData()
 	ud.Value = val
 	return ud
-}
-
-func (e *Engine) Data(n int) interface{} {
-	ud := e.L.CheckUserData(n)
-	return ud.Value
 }
 
 // read-write object

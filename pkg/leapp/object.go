@@ -4,42 +4,6 @@ import (
 	lua "github.com/yuin/gopher-lua"
 )
 
-// read-only iterable object
-// func objIterable(L *lua.LState, iterMap map[string]lua.LValue) lua.LValue {
-// 	mt := map[string]lua.LGFunction{
-// 		"__index": func(L *lua.LState) int {
-// 			key := L.CheckString(2)
-// 			if elem, ok := iterMap[key]; ok {
-// 				L.Push(elem)
-// 			} else {
-// 				L.Push(lua.LNil)
-// 			}
-// 			return 1
-// 		},
-// 		"__call": func(L *lua.LState) int {
-// 			cur := 0
-// 			keys := make([]string, 0)
-// 			for k := range iterMap {
-// 				keys = append(keys, k)
-// 			}
-// 			closure := func(L *lua.LState) int {
-// 				if cur >= len(iterMap) {
-// 					L.Push(lua.LNil)
-// 					return 1
-// 				}
-// 				k := keys[cur]
-// 				L.Push(lua.LString(k))
-// 				L.Push(iterMap[k])
-// 				cur += 1
-// 				return 2
-// 			}
-// 			L.Push(L.NewFunction(closure))
-// 			return 1
-// 		},
-// 	}
-// 	return objProxyFuncs(L, mt)
-// }
-
 // for fasthttp
 
 type (

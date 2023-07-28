@@ -159,11 +159,6 @@ func start(ctx *cli.Context) error {
 func worker(cliCtx *cli.Context, c config.Config) error {
 	sig := daemon.Listen(daemon.ExitHandler, os.Interrupt, syscall.SIGTERM)
 
-	pid, err := daemon.ReadPid(cliCtx.Path("pidfile"))
-	if err != nil {
-		return err
-	}
-
 	ln, err := daemon.Forked(c.Listen)
 	if err != nil {
 		return err
@@ -281,18 +276,23 @@ func worker(cliCtx *cli.Context, c config.Config) error {
 		return nil
 	}
 
-	reload := func() error {
-		if runtime.GOOS == "windows" {
-			return errors.New("not supported on windows")
-		}
-		fmt.Println("\n Reloading...")
-
-		if err := daemon.Kill(pid, syscall.SIGHUP); err != nil {
+	var reload func() error
+	if runtime.GOOS != "windows" {
+		pid, err := daemon.ReadPid(cliCtx.Path("pidfile"))
+		if err != nil {
 			return err
 		}
+		defer daemon.Kill(pid, syscall.SIGTERM)
+		reload = func() error {
+			fmt.Println("\n Reloading...")
 
-		os.Exit(0)
-		return nil
+			if err := daemon.Kill(pid, syscall.SIGHUP); err != nil {
+				return err
+			}
+
+			os.Exit(0)
+			return nil
+		}
 	}
 
 	stop := func(timeout time.Duration) error {
@@ -355,7 +355,6 @@ func worker(cliCtx *cli.Context, c config.Config) error {
 
 	sig.Close()
 	<-exit
-	daemon.Kill(pid, syscall.SIGTERM)
 
 	return nil
 }

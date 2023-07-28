@@ -10,18 +10,15 @@ type Print func(format string, a ...any)
 
 func New(colors map[string]Print) lue.Module {
 	return func(E *lue.Engine) lua.LValue {
-		L := E.L
-		cli := L.NewTable()
+		cli := E.NewTable()
 
 		regFuncs := map[string]lua.LGFunction{}
 		for name, p := range colors {
 			regFuncs[name] = colorMethod(p)
 		}
-		L.SetFuncs(cli, regFuncs)
+		E.L.SetFuncs(cli, regFuncs)
 
-		E.SetFuncs(cli, map[string]lue.Fun{
-			"clear": clear,
-		})
+		E.SetFuncs(cli, cliExports)
 
 		return cli
 	}
@@ -37,6 +34,10 @@ func colorMethod(p Print) lua.LGFunction {
 		p(format, str...)
 		return 0
 	}
+}
+
+var cliExports = map[string]lue.Fun{
+	"clear": clear,
 }
 
 func clear(E *lue.Engine) int {

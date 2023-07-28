@@ -12,8 +12,8 @@ import (
 
 func New(c config.DB) lue.Module {
 	return func(E *lue.Engine) lua.LValue {
-		L := E.L
-		L.Pop(odbc.Loader(L))
+		odbc.Loader(E.L)
+		E.Clear()
 		dbc := odbc.Config{
 			Driver:     c.Driver,
 			ConnString: c.Conn,
@@ -22,12 +22,12 @@ func New(c config.DB) lue.Module {
 		// open db in protected mode
 		pdb, err := odbc.Open(dbc)
 		if err != nil {
-			L.RaiseError("db open: %v", err)
+			E.Error("db open: %v", err)
 		}
-		mt := L.NewTypeMetatable("db_ud")
-		index := L.GetField(mt, "__index").(*lua.LTable)
+		mt := E.L.NewTypeMetatable("db_ud")
+		index := E.L.GetField(mt, "__index").(*lua.LTable)
 		index.RawSetString("sqlpath", lua.LString(c.SQLPath))
-		L.SetFuncs(index, map[string]lua.LGFunction{
+		E.L.SetFuncs(index, map[string]lua.LGFunction{
 			"loadsql": LoadSQL,
 		})
 

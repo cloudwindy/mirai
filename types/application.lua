@@ -1,9 +1,6 @@
 ---@meta
 
 --- Mirai 服务器
----
---- 请注意：所有的 HTTP 处理器都会被运行在单独的协程上，为了线程安全，
---- 处理器中不可引用全局变量，如果有需要，请使用 ```app:set```。
 ---@class Application : Router
 local Application = {}
 

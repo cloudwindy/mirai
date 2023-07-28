@@ -17,15 +17,16 @@ const (
 )
 
 type (
-	StartAndReloadHandler func() error
-	StopHandler           func(timeout time.Duration) error
+	StartHandler  func(listen string) error
+	ReloadHandler func() error
+	StopHandler   func(timeout time.Duration) error
 )
 
 type Config struct {
 	App    fiber.Router
 	Store  *session.Store
-	Start  StartAndReloadHandler
-	Reload StartAndReloadHandler
+	Start  StartHandler
+	Reload ReloadHandler
 	Stop   StopHandler
 }
 
@@ -148,7 +149,11 @@ func appStart(E *lue.Engine) int {
 	if app.sub {
 		E.Error("app start: cannot start a subrouter")
 	}
-	if err := app.c.Start(); err != nil {
+	listen := ""
+	if E.Top() > 1 {
+		listen = E.String(2)
+	}
+	if err := app.c.Start(listen); err != nil {
 		E.Error("app start: %v", err)
 	}
 	return 0

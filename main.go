@@ -33,6 +33,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/requestid"
 	"github.com/gofiber/fiber/v2/middleware/session"
 	sbolt "github.com/gofiber/storage/bbolt"
+	"github.com/mattn/go-sqlite3"
 	"github.com/pkg/errors"
 	"github.com/urfave/cli/v2"
 	lua "github.com/yuin/gopher-lua"
@@ -46,18 +47,31 @@ const (
 
 // Color helper functions
 var (
-	colors = map[string]lecli.Print{
-		"succ": succ,
-		"info": info,
-		"warn": warn,
-		"fail": fail,
+	colors = map[string]lecli.Printf{
+		"print": print,
+		"succ":  succ,
+		"info":  info,
+		"warn":  warn,
+		"fail":  fail,
 	}
-	succ = color.New(color.FgGreen).PrintfFunc()
-	info = color.New(color.FgBlue).PrintfFunc()
-	warn = color.New(color.FgYellow).PrintfFunc()
-	fail = color.New(color.FgRed).PrintfFunc()
-	//go:embed ilua.lua
-	ilua string
+	print = color.New(color.Reset).PrintfFunc()
+	succ  = color.New(color.FgGreen).PrintfFunc()
+	info  = color.New(color.FgBlue).PrintfFunc()
+	warn  = color.New(color.FgYellow).PrintfFunc()
+	fail  = color.New(color.FgRed).PrintfFunc()
+)
+
+//go:embed ilua.lua
+var ilua string
+
+var (
+	sqlver, _, _ = sqlite3.Version()
+	versions     = map[string]string{
+		"VERSION":        Version,
+		"GO_VERSION":     strings.TrimPrefix(runtime.Version(), "go"),
+		"FIBER_VERSION":  fiber.Version,
+		"SQLITE_VERSION": sqlver,
+	}
 )
 
 func main() {
@@ -79,20 +93,21 @@ func main() {
 		Commands: []*cli.Command{
 			{
 				Name:  "start",
-				Usage: "start the server (default)",
+				Usage: "Start the server (default)",
 				Flags: []cli.Flag{
 					&cli.BoolFlag{
 						Name:    "edit",
 						Aliases: []string{"e"},
-						Usage:   "allow editing",
+						Usage:   "Allow editing",
 					},
 					&cli.BoolFlag{
-						Name:  "banner",
-						Usage: "show banner",
+						Name:    "interactive",
+						Aliases: []string{"i"},
+						Usage:   "Enter interactive mode after starting",
 					},
 					&cli.PathFlag{
 						Name:  "pidfile",
-						Usage: "file which the child's pid is stored in",
+						Usage: "File which the child's pid is stored in",
 						Value: path.Join(os.TempDir(), "mirai.pid"),
 					},
 				},
@@ -100,7 +115,7 @@ func main() {
 			},
 			{
 				Name:  "run",
-				Usage: "run command",
+				Usage: "Run command",
 			},
 		},
 	}
@@ -118,15 +133,14 @@ func start(ctx *cli.Context) error {
 
 	c, err := config.Parse(ctx.Path("proj"))
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			startInteractive()
+			return nil
+		}
 		return err
 	}
 
-	env := map[string]string{
-		"VERSION":       Version,
-		"GO_VERSION":    strings.TrimPrefix(runtime.Version(), "go"),
-		"FIBER_VERSION": fiber.Version,
-	}
-	for k, v := range env {
+	for k, v := range versions {
 		c.Env.RawSetString(k, lua.LString(v))
 	}
 
@@ -172,7 +186,7 @@ func start(ctx *cli.Context) error {
 }
 
 func worker(ctx *cli.Context, c config.Config) error {
-	sig := daemon.Listen(daemon.ExitHandler, os.Interrupt, syscall.SIGTERM)
+	forcequit := daemon.Listen(daemon.ExitHandler, os.Interrupt, syscall.SIGTERM)
 
 	ln, err := daemon.Forked(c.Listen)
 	if err != nil {
@@ -272,9 +286,9 @@ func worker(ctx *cli.Context, c config.Config) error {
 			})
 	}
 
-	G := lue.New(c.Index, c.Env)
+	G := lue.New(c.Env)
 
-	start := func() error {
+	start := func(_ string) error {
 		fmt.Print("Listening at ")
 		info(c.Listen)
 		fmt.Print("\n\n")
@@ -335,8 +349,7 @@ func worker(ctx *cli.Context, c config.Config) error {
 	G.Register("app", leapp.New(capp)).
 		Register("db", ledb.New(c.DB)).
 		Register("cli", lecli.New(colors)).
-		Run().
-		Eval(ilua)
+		Run(c.Index)
 
 	if err := G.Err(); err != nil {
 		return err
@@ -344,8 +357,60 @@ func worker(ctx *cli.Context, c config.Config) error {
 
 	exit := make(chan bool)
 
-	go func() {
-		G.Eval(`
+	if ctx.Bool("interactive") {
+		go func() {
+			interactive(G)
+			exit <- true
+		}()
+	} else {
+		daemon.Listen(func(s os.Signal) {
+			exit <- true
+		}, os.Interrupt)
+	}
+	forcequit.Close()
+	<-exit
+
+	return nil
+}
+
+func startInteractive() {
+	fmt.Printf("Mirai Server %s with %s\n", Version, lue.LuaVersion)
+	G := lue.New(nil)
+	app := fiber.New()
+	store := session.New()
+	capp := leapp.Config{
+		App:   fiber.New(),
+		Store: store,
+		Start: func(listen string) error {
+			go func() {
+				if err := app.Listen(listen); err != nil {
+					fail("%v", err)
+				}
+			}()
+			return nil
+		},
+		Stop: func(timeout time.Duration) error {
+			if timeout != 0 {
+				return app.ShutdownWithTimeout(timeout)
+			} else {
+				return app.Shutdown()
+			}
+		},
+	}
+	db := config.DB{
+		Driver: "sqlite3",
+		Conn:   ":memory:",
+	}
+	G.Register("app", leapp.New(capp)).
+		Register("db", ledb.New(db)).
+		Register("cli", lecli.New(colors))
+	interactive(G)
+}
+
+func interactive(G *lue.Engine) {
+	G.
+		Eval(ilua).
+		Eval(`
 			local params = {
 				prompt = '> ',
 				prompt2 = '  ',
@@ -355,16 +420,7 @@ func worker(ctx *cli.Context, c config.Config) error {
 			ilua:start()
 			ilua:run()
 		`)
-
-		if err := G.Err(); err != nil {
-			fail("%v", err)
-		}
-
-		exit <- true
-	}()
-
-	sig.Close()
-	<-exit
-
-	return nil
+	if err := G.Err(); err != nil {
+		fail("%v", err)
+	}
 }

@@ -29,7 +29,6 @@ type Engine struct {
 	L       *lua.LState
 	Values  map[string]lua.LValue
 	env     *lua.LTable
-	path    string
 	modules map[string]Module
 	parent  *Engine
 	err     error
@@ -41,12 +40,14 @@ type (
 	Fun    func(E *Engine) int
 )
 
-func New(path string, env *lua.LTable) *Engine {
+func New(env *lua.LTable) *Engine {
 	L := lua.NewState()
 	lelib.OpenLib(L)
-	L.SetGlobal("env", env)
+	if env != nil {
+		L.SetGlobal("env", env)
+	}
 	L.SetGlobal("cmd", L.NewFunction(cmd))
-	return &Engine{L: L, path: path, modules: make(map[string]Module)}
+	return &Engine{L: L, modules: make(map[string]Module)}
 }
 
 func cmd(L *lua.LState) int {
@@ -96,7 +97,7 @@ func (e *Engine) Register(name string, module Module) *Engine {
 	return e
 }
 
-func (e *Engine) Run() *Engine {
+func (e *Engine) Run(path string) *Engine {
 	if e.parent != nil {
 		panic("Cannot run a child engine.")
 	}
@@ -105,7 +106,7 @@ func (e *Engine) Run() *Engine {
 	}
 	e.Lock()
 	defer e.Unlock()
-	file, _, err := dir.Index(e.path, DefaultIndex)
+	file, _, err := dir.Index(path, DefaultIndex)
 	if err != nil {
 		e.err = err
 		return e

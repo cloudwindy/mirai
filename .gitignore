@@ -3,5 +3,8 @@
 # dependencies
 /vendor
 
+# build
+/mirai*
+
 # misc
 .vscode

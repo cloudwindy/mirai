@@ -1,6 +1,7 @@
 package lib
 
 import (
+	"github.com/cloudwindy/mirai/lib/art"
 	"github.com/cloudwindy/mirai/lib/bcrypt"
 	"github.com/cloudwindy/mirai/lib/http"
 	"github.com/cloudwindy/mirai/lib/mail"
@@ -26,6 +27,7 @@ import (
 )
 
 func Preload(L *lua.LState) {
+	art.Preload(L)
 	bcrypt.Preload(L)
 	http.Preload(L)
 	mail.Preload(L)

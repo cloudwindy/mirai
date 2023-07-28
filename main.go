@@ -35,7 +35,7 @@ import (
 	sbolt "github.com/gofiber/storage/bbolt"
 	"github.com/pkg/errors"
 	"github.com/urfave/cli/v2"
-	"github.com/zs5460/art"
+	lua "github.com/yuin/gopher-lua"
 )
 
 // Package info
@@ -115,10 +115,19 @@ func start(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	
+
 	c, err := config.Parse(ctx.Path("proj"))
 	if err != nil {
 		return err
+	}
+
+	env := map[string]string{
+		"VERSION":       Version,
+		"GO_VERSION":    strings.TrimPrefix(runtime.Version(), "go"),
+		"FIBER_VERSION": fiber.Version,
+	}
+	for k, v := range env {
+		c.Env.RawSetString(k, lua.LString(v))
 	}
 
 	if daemon.IsChild() || runtime.GOOS == "windows" {
@@ -168,12 +177,6 @@ func worker(ctx *cli.Context, c config.Config) error {
 	ln, err := daemon.Forked(c.Listen)
 	if err != nil {
 		return err
-	}
-
-	if ctx.Bool("banner") {
-		color.Blue(art.String("Mirai Project"))
-		fmt.Printf("Mirai Server %s with Lua %s\n", Version, lue.LuaVersion)
-		fmt.Printf("Fiber %s\n\n", fiber.Version)
 	}
 
 	app := fiber.

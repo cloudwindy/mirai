@@ -24,7 +24,6 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/cache"
 	"github.com/gofiber/fiber/v2/middleware/compress"
 	"github.com/gofiber/fiber/v2/middleware/cors"
-	"github.com/gofiber/fiber/v2/middleware/etag"
 	"github.com/gofiber/fiber/v2/middleware/favicon"
 	"github.com/gofiber/fiber/v2/middleware/limiter"
 	"github.com/gofiber/fiber/v2/middleware/logger"
@@ -36,7 +35,6 @@ import (
 	"github.com/mattn/go-sqlite3"
 	"github.com/pkg/errors"
 	"github.com/urfave/cli/v2"
-	lua "github.com/yuin/gopher-lua"
 )
 
 // Package info
@@ -66,7 +64,7 @@ var ilua string
 
 var (
 	sqlver, _, _ = sqlite3.Version()
-	versions     = map[string]string{
+	globalEnv    = map[string]any{
 		"VERSION":        Version,
 		"GO_VERSION":     strings.TrimPrefix(runtime.Version(), "go"),
 		"FIBER_VERSION":  fiber.Version,
@@ -74,49 +72,46 @@ var (
 	}
 )
 
+var DefaultPidFile = "mirai.pid"
+
 func main() {
 	time.Sleep(100 * time.Millisecond)
-	app := &cli.App{
-		Name:                   "mirai",
-		Usage:                  "Server for the Mirai Project",
-		Version:                Version,
-		DefaultCommand:         "start",
-		UseShortOptionHandling: true,
-		Flags: []cli.Flag{
-			&cli.PathFlag{
-				Name:    "proj",
-				Aliases: []string{"p"},
-				Usage:   "project directory",
-				Value:   ".",
-			},
+	app := cli.NewApp()
+	app.Usage = "Server for the Mirai Project"
+	app.Version = Version
+	app.DefaultCommand = "start"
+	app.UseShortOptionHandling = true
+	app.EnableBashCompletion = true
+	app.Flags = []cli.Flag{
+		&cli.PathFlag{
+			Name:    "proj",
+			Aliases: []string{"p"},
+			Usage:   "set project path",
+			Value:   ".",
 		},
-		Commands: []*cli.Command{
-			{
-				Name:  "start",
-				Usage: "Start the server (default)",
-				Flags: []cli.Flag{
-					&cli.BoolFlag{
-						Name:    "edit",
-						Aliases: []string{"e"},
-						Usage:   "Allow editing",
-					},
-					&cli.BoolFlag{
-						Name:    "interactive",
-						Aliases: []string{"i"},
-						Usage:   "Enter interactive mode after starting",
-					},
-					&cli.PathFlag{
-						Name:  "pidfile",
-						Usage: "File which the child's pid is stored in",
-						Value: path.Join(os.TempDir(), "mirai.pid"),
-					},
-				},
-				Action: start,
-			},
-			{
-				Name:  "run",
-				Usage: "Run command",
-			},
+		&cli.BoolFlag{
+			Name:    "interactive",
+			Aliases: []string{"i"},
+			Usage:   "enter interactive mode after executing",
+		},
+	}
+	app.Commands = []*cli.Command{
+		{
+			Name:  "start",
+			Usage: "Start the server (default)",
+			Description: "Start command finds project.lua in the specified project path. \n" +
+				"Then, it starts the server based on the configuration. \n" +
+				"If it is not found, it will set up a temporary server and database and enter interactive mode.",
+			ArgsUsage:       "arguments are passed to Lua scripts without parsing",
+			SkipFlagParsing: true,
+			Action:          start,
+		},
+		{
+			Name:            "run",
+			Usage:           "Run command",
+			ArgsUsage:       "arguments are passed to Lua scripts without parsing",
+			SkipFlagParsing: true,
+			Action:          run,
 		},
 	}
 
@@ -134,21 +129,24 @@ func start(ctx *cli.Context) error {
 	c, err := config.Parse(ctx.Path("proj"))
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			startInteractive()
+			startInteractive(ctx)
 			return nil
 		}
 		return err
 	}
 
-	for k, v := range versions {
-		c.Env.RawSetString(k, lua.LString(v))
+	for k, v := range c.Env {
+		globalEnv[k] = v
 	}
 
 	if daemon.IsChild() || runtime.GOOS == "windows" {
 		return worker(ctx, c)
 	}
 
-	pidpath := ctx.Path("pidfile")
+	pidpath := c.Pid
+	if pidpath == "" {
+		pidpath = path.Join(os.TempDir(), DefaultPidFile)
+	}
 	err = daemon.WritePid(pidpath)
 	if err != nil {
 		return err
@@ -180,6 +178,7 @@ func start(ctx *cli.Context) error {
 	}
 	sigln := daemon.Listen(handler, syscall.SIGHUP, syscall.SIGTERM)
 	<-exit
+	fmt.Println("master exit")
 	sigln.Close()
 
 	return nil
@@ -263,12 +262,8 @@ func worker(ctx *cli.Context, c config.Config) error {
 				c.Locals(localSkip, strings.HasPrefix(c.Path(), "/api"))
 				return c.Next()
 			}).
-			Use(etag.New(etag.Config{
-				Next: next,
-			})).
 			Use(cache.New(cache.Config{
 				Next:         next,
-				Storage:      storage,
 				CacheHeader:  "Cache-Status",
 				CacheControl: false,
 				Expiration:   72 * time.Hour,
@@ -285,8 +280,6 @@ func worker(ctx *cli.Context, c config.Config) error {
 				return c.RestartRouting()
 			})
 	}
-
-	G := lue.New(c.Env)
 
 	start := func(_ string) error {
 		fmt.Print("Listening at ")
@@ -320,8 +313,7 @@ func worker(ctx *cli.Context, c config.Config) error {
 	}
 
 	stop := func(timeout time.Duration) error {
-		fmt.Print("Shutting down...")
-		defer fmt.Print("\n")
+		fmt.Print("\nShutting down...")
 
 		sig := daemon.Listen(daemon.ExitHandler, os.Interrupt, syscall.SIGTERM)
 		defer sig.Close()
@@ -346,9 +338,11 @@ func worker(ctx *cli.Context, c config.Config) error {
 		Reload: reload,
 		Stop:   stop,
 	}
-	G.Register("app", leapp.New(capp)).
+
+	G := lue.New(globalEnv).
+		Register("app", leapp.New(capp)).
 		Register("db", ledb.New(c.DB)).
-		Register("cli", lecli.New(colors)).
+		Register("cli", lecli.New(ctx, colors)).
 		Run(c.Index)
 
 	if err := G.Err(); err != nil {
@@ -364,6 +358,7 @@ func worker(ctx *cli.Context, c config.Config) error {
 		}()
 	} else {
 		daemon.Listen(func(s os.Signal) {
+			G.Eval(`app:stop(10)`)
 			exit <- true
 		}, os.Interrupt)
 	}
@@ -373,9 +368,8 @@ func worker(ctx *cli.Context, c config.Config) error {
 	return nil
 }
 
-func startInteractive() {
+func startInteractive(ctx *cli.Context) {
 	fmt.Printf("Mirai Server %s with %s\n", Version, lue.LuaVersion)
-	G := lue.New(nil)
 	app := fiber.New()
 	store := session.New()
 	capp := leapp.Config{
@@ -401,10 +395,26 @@ func startInteractive() {
 		Driver: "sqlite3",
 		Conn:   ":memory:",
 	}
-	G.Register("app", leapp.New(capp)).
+	G := lue.New(globalEnv).
+		Register("app", leapp.New(capp)).
 		Register("db", ledb.New(db)).
-		Register("cli", lecli.New(colors))
+		Register("cli", lecli.New(ctx, colors))
 	interactive(G)
+}
+
+func run(ctx *cli.Context) error {
+	c, err := config.Parse(ctx.Path("proj"))
+	if err != nil {
+		return err
+	}
+	for k, v := range c.Env {
+		globalEnv[k] = v
+	}
+	lue.New(globalEnv).
+		Register("db", ledb.New(c.DB)).
+		Register("cli", lecli.New(ctx, colors)).
+		Run(c.Index)
+	return nil
 }
 
 func interactive(G *lue.Engine) {

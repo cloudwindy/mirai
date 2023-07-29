@@ -8,6 +8,7 @@ import (
 	"github.com/cloudwindy/mirai/pkg/lelib"
 	lutpool "github.com/cloudwindy/mirai/pkg/lut/pool"
 	lua "github.com/yuin/gopher-lua"
+	luar "layeh.com/gopher-luar"
 )
 
 // Package info
@@ -40,11 +41,11 @@ type (
 	Fun    func(E *Engine) int
 )
 
-func New(env *lua.LTable) *Engine {
+func New(env map[string]any) *Engine {
 	L := lua.NewState()
 	lelib.OpenLib(L)
 	if env != nil {
-		L.SetGlobal("env", env)
+		L.SetGlobal("env", luar.New(L, env))
 	}
 	L.SetGlobal("cmd", L.NewFunction(cmd))
 	return &Engine{L: L, modules: make(map[string]Module)}

@@ -12,14 +12,16 @@ import (
 var ProjectFileName = "project.lua"
 
 type Config struct {
-	Listen  string
-	Editing bool
-	Data    string
-	Root    string
-	Index   string
-	DB      DB
-	Limiter Limiter
-	Env     *lua.LTable `lua:"-"`
+	Listen   string
+	Editing  bool
+	Data     string
+	Root     string
+	Index    string
+	Pid      string
+	DB       DB
+	Limiter  Limiter
+	Commands map[string]string
+	Env      map[string]any
 }
 
 type DB struct {
@@ -57,9 +59,6 @@ func Parse(projectDir string) (c Config, err error) {
 	mapper := gluamapper.NewMapper(gluamapper.Option{TagName: "lua"})
 	if err = mapper.Map(t, &c); err != nil {
 		return
-	}
-	if env, ok := t.RawGetString("env").(*lua.LTable); ok {
-		c.Env = env
 	}
 	return
 }

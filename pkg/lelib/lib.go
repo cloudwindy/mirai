@@ -41,5 +41,5 @@ var osExports = map[string]lua.LGFunction{
 	"stat":         goos.Stat,
 	"hostname":     goos.Hostname,
 	"get_pagesize": goos.Getpagesize,
-	"mkdir_all":    goos.MkdirAll,
+	"mkdir":    goos.MkdirAll,
 }

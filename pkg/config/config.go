@@ -56,7 +56,12 @@ func Parse(projectDir string) (c Config, err error) {
 		return
 	}
 	t := L.CheckTable(1)
-	mapper := gluamapper.NewMapper(gluamapper.Option{TagName: "lua"})
+	mapper := gluamapper.NewMapper(gluamapper.Option{
+		TagName: "lua",
+		NameFunc: func(s string) string {
+			return s
+		},
+	})
 	if err = mapper.Map(t, &c); err != nil {
 		return
 	}

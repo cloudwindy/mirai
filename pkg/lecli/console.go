@@ -3,13 +3,12 @@ package lecli
 import (
 	"github.com/cloudwindy/mirai/pkg/lue"
 	"github.com/inancgumus/screen"
-	"github.com/urfave/cli/v2"
 	lua "github.com/yuin/gopher-lua"
 )
 
 type Printf func(format string, a ...any)
 
-func New(ctx *cli.Context, colors map[string]Printf) lue.Module {
+func New(arguments []string, colors map[string]Printf) lue.Module {
 	return func(E *lue.Engine) lua.LValue {
 		cli := E.NewTable()
 
@@ -18,7 +17,7 @@ func New(ctx *cli.Context, colors map[string]Printf) lue.Module {
 			regFuncs[name] = colorMethod(p)
 		}
 		args := E.NewTable()
-		for _, a := range ctx.Args().Slice() {
+		for _, a := range arguments {
 			args.Append(lua.LString(a))
 		}
 		E.SetFields(cli, map[string]lua.LValue{

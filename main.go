@@ -260,7 +260,7 @@ func worker(ctx *cli.Context, c config.Config) error {
 	if c.Root != "" {
 		ok, err := dir.Is(c.Root)
 		if !ok {
-			return errors.New("Root directory does not exist")
+			return errors.New("root directory does not exist")
 		}
 		if err != nil {
 			return err
@@ -309,7 +309,7 @@ func worker(ctx *cli.Context, c config.Config) error {
 			return err
 		}
 		reload = func() error {
-			fmt.Println("Reloading...")
+			fmt.Println("reloading...")
 
 			if err := daemon.Kill(pid, syscall.SIGHUP); err != nil {
 				return err
@@ -321,7 +321,7 @@ func worker(ctx *cli.Context, c config.Config) error {
 	}
 
 	stop := func(timeout time.Duration) error {
-		fmt.Print("\nShutting down...")
+		fmt.Print("\nshutting down...")
 		defer fmt.Println()
 
 		sig := daemon.Listen(daemon.ExitHandler, os.Interrupt)
@@ -351,7 +351,7 @@ func worker(ctx *cli.Context, c config.Config) error {
 	G := lue.New(globalEnv).
 		Register("app", leapp.New(capp)).
 		Register("db", ledb.New(c.DB)).
-		Register("cli", lecli.New(ctx, colors)).
+		Register("cli", lecli.New(ctx.Args().Slice(), colors)).
 		Run(c.Index)
 
 	if err := G.Err(); err != nil {
@@ -401,11 +401,18 @@ func startInteractive(ctx *cli.Context) {
 	G := lue.New(globalEnv).
 		Register("app", leapp.New(capp)).
 		Register("db", ledb.New(db)).
-		Register("cli", lecli.New(ctx, colors))
+		Register("cli", lecli.New(ctx.Args().Slice(), colors))
+	if err := G.Err(); err != nil {
+		fail("%v\n", err)
+	}
 	interactive(G)
 }
 
 func run(ctx *cli.Context) error {
+	args := ctx.Args()
+	if args.Len() < 1 {
+		return errors.New("command not specified")
+	}
 	c, err := config.Parse(ctx.Path("proj"))
 	if err != nil {
 		return err
@@ -413,10 +420,17 @@ func run(ctx *cli.Context) error {
 	for k, v := range c.Env {
 		globalEnv[k] = v
 	}
-	lue.New(globalEnv).
+	cmd, ok := c.Commands[args.First()]
+	if !ok {
+		return errors.New("command not found")
+	}
+	G := lue.New(globalEnv).
 		Register("db", ledb.New(c.DB)).
-		Register("cli", lecli.New(ctx, colors)).
-		Run(c.Index)
+		Register("cli", lecli.New(args.Tail(), colors)).
+		Run(cmd)
+	if err := G.Err(); err != nil {
+		fail("%v\n", err)
+	}
 	return nil
 }
 

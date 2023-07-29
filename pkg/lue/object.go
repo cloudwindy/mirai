@@ -8,7 +8,7 @@ func (e *Engine) NewTable() *lua.LTable {
 	return e.L.NewTable()
 }
 
-func (e *Engine) NewData(val interface{}) lua.LValue {
+func (e *Engine) NewData(val any) lua.LValue {
 	ud := e.L.NewUserData()
 	ud.Value = val
 	return ud
@@ -31,7 +31,7 @@ func (e *Engine) ReadOnly(getter lua.LGFunction) lua.LValue {
 	return e.ProxyFuncs(mt)
 }
 
-func (e *Engine) Anonymous(value interface{}, index lua.LValue, newIndex ...lua.LValue) lua.LValue {
+func (e *Engine) Anonymous(value any, index lua.LValue, newIndex ...lua.LValue) lua.LValue {
 	obj := e.NewData(value)
 	mt := e.L.NewTable()
 	mt.RawSetString("__index", index)
@@ -42,7 +42,7 @@ func (e *Engine) Anonymous(value interface{}, index lua.LValue, newIndex ...lua.
 	return obj
 }
 
-func (e *Engine) Class(name string, value interface{}, index ...lua.LValue) lua.LValue {
+func (e *Engine) Class(name string, value any, index ...lua.LValue) lua.LValue {
 	obj := e.NewData(value)
 	mt := e.L.NewTypeMetatable(name)
 	if len(index) > 0 {

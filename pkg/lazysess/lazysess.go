@@ -25,7 +25,7 @@ func (ls *LazySession) Fresh() bool {
 	return ls.init().Fresh()
 }
 
-func (ls *LazySession) Get(key string) interface{} {
+func (ls *LazySession) Get(key string) any {
 	return ls.init().Get(key)
 }
 
@@ -45,7 +45,7 @@ func (ls *LazySession) Save() error {
 	return ls.init().Save()
 }
 
-func (ls *LazySession) Set(key string, val interface{}) {
+func (ls *LazySession) Set(key string, val any) {
 	ls.init().Set(key, val)
 }
 

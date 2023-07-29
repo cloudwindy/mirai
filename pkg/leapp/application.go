@@ -97,7 +97,7 @@ func appSub(E *lue.Engine) int {
 // appUse adds middleware to the app.
 func appUse(E *lue.Engine) int {
 	app := E.Data(1).(*Application)
-	var values []interface{}
+	var values []any
 	for i := 2; i <= E.Top(); i++ {
 		switch val := E.Get(i).(type) {
 		case lua.LString:

@@ -11,12 +11,12 @@ type Session interface {
 	Delete(key string)
 	Destroy() error
 	Fresh() bool
-	Get(key string) interface{}
+	Get(key string) any
 	ID() string
 	Keys() []string
 	Regenerate() error
 	Save() error
-	Set(key string, val interface{})
+	Set(key string, val any)
 	SetExpiry(exp time.Duration)
 }
 

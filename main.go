@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"fmt"
 	"os"
+	"os/signal"
 	"path"
 	"runtime"
 	"strings"
@@ -134,58 +135,69 @@ func start(ctx *cli.Context) error {
 		}
 		return err
 	}
-
 	for k, v := range c.Env {
 		globalEnv[k] = v
 	}
 
+	if c.Pid == "" {
+		c.Pid = path.Join(os.TempDir(), DefaultPidFile)
+	}
 	if daemon.IsChild() || runtime.GOOS == "windows" {
 		return worker(ctx, c)
 	}
 
-	pidpath := c.Pid
-	if pidpath == "" {
-		pidpath = path.Join(os.TempDir(), DefaultPidFile)
-	}
-	err = daemon.WritePid(pidpath)
-	if err != nil {
+	if err = daemon.WritePid(c.Pid); err != nil {
 		return err
 	}
-	defer os.Remove(pidpath)
+	defer os.Remove(c.Pid)
 
 	ln, err := daemon.Forked(c.Listen)
 	if err != nil {
 		return err
 	}
 
-	ok, err := daemon.Fork(wd, ln)
+	var proc, newproc *os.Process
+	proc, err = daemon.Fork(wd, ln)
 	if err != nil {
 		return err
 	}
-	if !ok {
+	if proc == nil {
 		return worker(ctx, c)
 	}
-	exit := make(chan bool)
 	handler := func(sig os.Signal) {
 		switch sig {
 		case syscall.SIGHUP:
-			if _, err := daemon.Fork(wd, ln); err != nil {
-				fail("%v", err)
+			if err := proc.Kill(); err != nil {
+				fail("%v\n", err)
+			}
+			if newproc, err = daemon.Fork(wd, ln); err != nil {
+				fail("%v\n", err)
 			}
 		case syscall.SIGTERM:
-			exit <- true
+			if err = proc.Kill(); err != nil {
+				fail("%v\n", err)
+			}
 		}
 	}
 	sigln := daemon.Listen(handler, syscall.SIGHUP, syscall.SIGTERM)
-	<-exit
-	fmt.Println("master exit")
-	sigln.Close()
+	defer sigln.Close()
+
+	if _, err := proc.Wait(); err != nil {
+		return err
+	}
+	for proc != newproc {
+		proc = newproc
+		_, err := proc.Wait()
+		if err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
 
 func worker(ctx *cli.Context, c config.Config) error {
-	forcequit := daemon.Listen(daemon.ExitHandler, os.Interrupt, syscall.SIGTERM)
+	sigln := daemon.Listen(daemon.ExitHandler, os.Interrupt)
 
 	ln, err := daemon.Forked(c.Listen)
 	if err != nil {
@@ -213,7 +225,7 @@ func worker(ctx *cli.Context, c config.Config) error {
 		Use(pprof.New()).
 		Use(func(c *fiber.Ctx) error {
 			// set before next to allow modifying
-			c.Set("Server", "mirai")
+			c.Set("Server", ServerName)
 			return c.Next()
 		})
 
@@ -282,9 +294,6 @@ func worker(ctx *cli.Context, c config.Config) error {
 	}
 
 	start := func(_ string) error {
-		fmt.Print("Listening at ")
-		info(c.Listen)
-		fmt.Print("\n\n")
 		go func() {
 			if err := app.Listener(ln); err != nil {
 				panic(errors.Wrap(err, "http start"))
@@ -294,12 +303,11 @@ func worker(ctx *cli.Context, c config.Config) error {
 	}
 
 	var reload func() error
-	if runtime.GOOS != "windows" {
-		pid, err := daemon.ReadPid(ctx.Path("pidfile"))
+	if daemon.IsChild() {
+		pid, err := daemon.ReadPid(c.Pid)
 		if err != nil {
 			return err
 		}
-		defer daemon.Kill(pid, syscall.SIGTERM)
 		reload = func() error {
 			fmt.Println("Reloading...")
 
@@ -314,8 +322,9 @@ func worker(ctx *cli.Context, c config.Config) error {
 
 	stop := func(timeout time.Duration) error {
 		fmt.Print("\nShutting down...")
+		defer fmt.Println()
 
-		sig := daemon.Listen(daemon.ExitHandler, os.Interrupt, syscall.SIGTERM)
+		sig := daemon.Listen(daemon.ExitHandler, os.Interrupt)
 		defer sig.Close()
 
 		var err error
@@ -349,21 +358,15 @@ func worker(ctx *cli.Context, c config.Config) error {
 		return err
 	}
 
-	exit := make(chan bool)
-
+	sigln.Close()
 	if ctx.Bool("interactive") {
-		go func() {
-			interactive(G)
-			exit <- true
-		}()
+		interactive(G)
 	} else {
-		daemon.Listen(func(s os.Signal) {
-			G.Eval(`app:stop(10)`)
-			exit <- true
-		}, os.Interrupt)
+		c := make(chan os.Signal, 1)
+		signal.Notify(c, os.Interrupt, syscall.SIGQUIT)
+		<-c
+		G.Eval(`app:stop(10)`)
 	}
-	forcequit.Close()
-	<-exit
 
 	return nil
 }
@@ -378,7 +381,7 @@ func startInteractive(ctx *cli.Context) {
 		Start: func(listen string) error {
 			go func() {
 				if err := app.Listen(listen); err != nil {
-					fail("%v", err)
+					fail("%v\n", err)
 				}
 			}()
 			return nil
@@ -429,8 +432,9 @@ func interactive(G *lue.Engine) {
 			local ilua = Ilua:new(params)
 			ilua:start()
 			ilua:run()
-		`)
+		`).
+		Eval(`app:stop(10)`)
 	if err := G.Err(); err != nil {
-		fail("%v", err)
+		fail("%v\n", err)
 	}
 }

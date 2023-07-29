@@ -11,7 +11,7 @@ const (
 	flagWorker = "__MIRAI_WORKER"
 )
 
-func Fork(wd string, ln *net.TCPListener) (ok bool, err error) {
+func Fork(wd string, ln *net.TCPListener) (proc *os.Process, err error) {
 	ex, err := os.Executable()
 	if err != nil {
 		return
@@ -42,7 +42,7 @@ func Fork(wd string, ln *net.TCPListener) (ok bool, err error) {
 	if err != nil {
 		return
 	}
-	return true, nil
+	return cmd.Process, nil
 }
 
 func IsChild() bool {

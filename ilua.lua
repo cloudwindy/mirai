@@ -752,8 +752,6 @@ function Ilua:run()
     self:eval_lua(input)
     rl.saveline(input)
   end
-  
-  app:stop(10)
 
   if self.savef then
     self.savef:close()

@@ -65,5 +65,15 @@ func Parse(projectDir string) (c Config, err error) {
 	if err = mapper.Map(t, &c); err != nil {
 		return
 	}
+	env := map[string]string{
+		"INDEX":    c.Index,
+		"LISTEN":   c.Listen,
+		"ROOT":     c.Root,
+		"DATAPATH": c.Data,
+		"SQLPATH":  c.DB.SQLPath,
+	}
+	for k, v := range env {
+		c.Env[k] = v
+	}
 	return
 }

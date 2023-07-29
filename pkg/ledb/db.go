@@ -36,7 +36,7 @@ func New(c config.DB) lue.Module {
 }
 
 func LoadSQL(L *lua.LState) int {
-	db := L.CheckTable(1)
+	db := L.CheckUserData(1)
 	name := L.CheckString(2)
 	sqlpath := L.GetField(db, "sqlpath")
 	sqlfile := path.Join(lua.LVAsString(sqlpath), name+".sql")

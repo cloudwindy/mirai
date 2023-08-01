@@ -4,7 +4,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/cloudwindy/mirai/pkg/lelib"
+	"github.com/cloudwindy/mirai/lib"
 	"github.com/yuin/gluamapper"
 	lua "github.com/yuin/gopher-lua"
 )
@@ -39,7 +39,7 @@ type Limiter struct {
 func Parse(projectDir string) (c Config, err error) {
 	L := lua.NewState()
 	defer L.Close()
-	lelib.OpenLib(L)
+	lib.Open(L)
 
 	if err = os.Chdir(projectDir); err != nil {
 		return
@@ -67,8 +67,8 @@ func Parse(projectDir string) (c Config, err error) {
 	}
 	env := map[string]string{
 		"INDEX":    c.Index,
-		"LISTEN":   c.Listen,
 		"ROOT":     c.Root,
+		"LISTEN":   c.Listen,
 		"DATAPATH": c.Data,
 		"SQLPATH":  c.DB.SQLPath,
 	}

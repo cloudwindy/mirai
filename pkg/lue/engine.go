@@ -4,8 +4,8 @@ import (
 	"context"
 	"sync"
 
+	"github.com/cloudwindy/mirai/lib"
 	"github.com/cloudwindy/mirai/pkg/dir"
-	"github.com/cloudwindy/mirai/pkg/lelib"
 	lutpool "github.com/cloudwindy/mirai/pkg/lut/pool"
 	lua "github.com/yuin/gopher-lua"
 	luar "layeh.com/gopher-luar"
@@ -43,7 +43,7 @@ type (
 
 func New(env map[string]any) *Engine {
 	L := lua.NewState()
-	lelib.OpenLib(L)
+	lib.Open(L)
 	if env != nil {
 		L.SetGlobal("env", luar.New(L, env))
 	}
@@ -72,7 +72,7 @@ func (e *Engine) New() (E *Engine, new bool) {
 		parent:  e,
 	}
 	if new {
-		lelib.OpenLib(L)
+		lib.Open(L)
 		L.SetGlobal("env", e.env)
 		for name, module := range e.modules {
 			L.SetGlobal(name, module(E))

@@ -40,7 +40,7 @@ import (
 
 // Package info
 const (
-	Version    = "1.2"
+	Version    = "1.3"
 	ServerName = "mirai/" + Version
 )
 

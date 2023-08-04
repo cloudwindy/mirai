@@ -1,7 +1,7 @@
 ---@meta
 
 ---@class jsonlib
-local json = {}
+json = {}
 
 --- 将一个 Lua 值转换为 JSON 字符串。
 ---
@@ -18,5 +18,3 @@ function json.encode(value) end
 ---@return any, string
 ---@nodiscard
 function json.decode(data) end
-
-return json

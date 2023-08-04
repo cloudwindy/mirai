@@ -128,13 +128,16 @@ func start(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-
+	ok, err := config.IsProject(ctx.Path("proj"))
+	if err != nil {
+		return err
+	}
+	if !ok {
+		startInteractive(ctx)
+		return nil
+	}
 	c, err := config.Parse(ctx.Path("proj"))
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			startInteractive(ctx)
-			return nil
-		}
 		return err
 	}
 	for k, v := range c.Env {
@@ -256,9 +259,9 @@ func worker(ctx *cli.Context, c config.Config) error {
 	}
 
 	var storage fiber.Storage
-	if c.Data != "" {
+	if c.DataPath != "" {
 		storage = sbolt.New(sbolt.Config{
-			Database: path.Join(c.Data, "fiber.db"),
+			Database: path.Join(c.DataPath, "fiber.db"),
 		})
 	}
 	store := session.New(session.Config{

@@ -193,7 +193,7 @@ func Command(L *lua.LState) int {
 	return 1
 }
 
-// Close lua db_ud:close() returns err
+// Close lua db_ud:close()
 func Close(L *lua.LState) int {
 	dbIface := checkDB(L, 1)
 	if err := dbIface.closeDB(); err != nil {

@@ -1,7 +1,6 @@
 package config
 
 import (
-	"io"
 	"os"
 
 	"github.com/cloudwindy/mirai/lib"
@@ -44,15 +43,7 @@ func Parse(projectDir string) (c Config, err error) {
 	if err = os.Chdir(projectDir); err != nil {
 		return
 	}
-	file, err := os.Open(ProjectFileName)
-	if err != nil {
-		return
-	}
-	str, err := io.ReadAll(file)
-	if err != nil {
-		return
-	}
-	if err = L.DoString(string(str)); err != nil {
+	if err = L.DoFile(ProjectFileName); err != nil {
 		return
 	}
 	t := L.CheckTable(1)

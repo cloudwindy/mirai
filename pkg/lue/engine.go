@@ -44,11 +44,20 @@ type (
 func New(env map[string]any) *Engine {
 	L := lua.NewState()
 	lib.Open(L)
+	e := &Engine{
+		L:       L,
+		modules: make(map[string]Module),
+	}
 	if env != nil {
-		L.SetGlobal("env", luar.New(L, env))
+		t := L.NewTable()
+		for k, v := range env {
+			t.RawSetString(k, luar.New(L, v))
+		}
+		L.SetGlobal("env", t)
+		e.env = t
 	}
 	L.SetGlobal("cmd", L.NewFunction(cmd))
-	return &Engine{L: L, modules: make(map[string]Module)}
+	return e
 }
 
 func cmd(L *lua.LState) int {

@@ -64,11 +64,11 @@ func Open(L *lua.LState) {
 		load(L)
 	}
 	for name, loader := range Loaders {
-		L.Pop(L.GetTop())
 		if loader(L) != 1 {
 			panic("loader must return only one value")
 		}
 		obj := L.Get(1)
 		L.SetGlobal(name, obj)
+		L.Pop(1)
 	}
 }

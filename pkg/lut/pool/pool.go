@@ -42,8 +42,9 @@ func (pl *LSPool) Put(L *lua.LState) {
 	pl.Saved = append(pl.Saved, L)
 }
 
-func (pl *LSPool) Shutdown() {
+func (pl *LSPool) Close() {
 	for _, L := range pl.Saved {
 		L.Close()
 	}
+	pl.Saved = nil
 }

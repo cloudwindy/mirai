@@ -19,20 +19,15 @@ const (
 // Package variables
 var (
 	DefaultIndex = "index.lua"
-	lspool       = lutpool.New(lua.Options{
-		CallStackSize:   64,
-		RegistrySize:    1024,
-		RegistryMaxSize: 1024 * 10,
-	})
 )
 
 type Engine struct {
 	L       *lua.LState
-	Values  map[string]lua.LValue
 	env     *lua.LTable
 	modules map[string]Module
 	parent  *Engine
 	err     error
+	lspool  *lutpool.LSPool
 	sync.Mutex
 }
 
@@ -48,6 +43,11 @@ func New(env map[string]any) *Engine {
 		L:       L,
 		modules: make(map[string]Module),
 	}
+	e.lspool = lutpool.New(lua.Options{
+		CallStackSize:   64,
+		RegistrySize:    1024,
+		RegistryMaxSize: 1024 * 10,
+	})
 	if env != nil {
 		t := L.NewTable()
 		for k, v := range env {
@@ -73,7 +73,7 @@ func (e *Engine) New() (E *Engine, new bool) {
 	if e.parent != nil {
 		panic("Cannot create an engine from child")
 	}
-	L, new := lspool.Get()
+	L, new := e.lspool.Get()
 	E = &Engine{
 		L:       L,
 		env:     e.env,
@@ -92,9 +92,10 @@ func (e *Engine) New() (E *Engine, new bool) {
 
 func (e *Engine) Close() {
 	if e.parent == nil {
-		panic("Close must be called from a child")
+		e.lspool.Close()
+		e.L.Close()
 	}
-	lspool.Put(e.L)
+	e.lspool.Put(e.L)
 }
 
 func (e *Engine) Register(name string, module Module) *Engine {

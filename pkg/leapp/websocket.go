@@ -64,7 +64,6 @@ func wsCtxState(E *lue.Engine, c *websocket.Conn) lua.LValue {
 
 func wsSend(E *lue.Engine) int {
 	c := E.Data(1).(*websocket.Conn)
-
 	var (
 		msg    []byte
 		binary bool

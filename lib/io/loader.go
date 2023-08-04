@@ -4,24 +4,12 @@ import (
 	lua "github.com/yuin/gopher-lua"
 )
 
-// Preload adds io to the given Lua state's package.preload table. After it
-// has been preloaded, it can be loaded using require:
-//
-//	local io = require("io")
-func Preload(L *lua.LState) {
-	L.PreloadModule("io", Loader)
-}
-
-// Loader is the module loader function.
-func Loader(L *lua.LState) int {
-	t := L.NewTable()
-	L.SetFuncs(t, api)
-	L.Push(t)
-	return 1
+// Load adds io to the Lua's io table.
+func Load(L *lua.LState) {
+	modIo := L.RegisterModule(lua.IoLibName, nil).(*lua.LTable)
+	L.SetFuncs(modIo, api)
 }
 
 var api = map[string]lua.LGFunction{
-	"readfile":  ReadFile,
-	"writefile": WriteFile,
-	"copy":      Copy,
+	"copy": Copy,
 }

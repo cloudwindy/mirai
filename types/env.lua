@@ -5,6 +5,12 @@
 ---@field [string] any
 env = {}
 
+--- 系统
+env.OS = ""
+
+--- 处理器架构
+env.ARCH = ""
+
 --- Lua 文件根目录
 ---@type string
 env.INDEX = ""

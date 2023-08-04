@@ -66,6 +66,8 @@ var ilua string
 var (
 	sqlver, _, _ = sqlite3.Version()
 	globalEnv    = map[string]any{
+		"OS":             runtime.GOOS,
+		"ARCH":           runtime.GOARCH,
 		"VERSION":        Version,
 		"GO_VERSION":     strings.TrimPrefix(runtime.Version(), "go"),
 		"FIBER_VERSION":  fiber.Version,

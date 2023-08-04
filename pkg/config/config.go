@@ -62,8 +62,18 @@ func Parse(projectDir string) (c Config, err error) {
 			return s
 		},
 	})
+	c.Env = make(map[string]any)
 	if err = mapper.Map(t, &c); err != nil {
 		return
+	}
+	if c.Index == "" {
+		c.Index = "."
+	}
+	if c.DB.Driver == "" || c.DB.Conn == "" {
+		c.DB = DB{
+			Driver: "sqlite3",
+			Conn:   ":memory:",
+		}
 	}
 	env := map[string]string{
 		"INDEX":    c.Index,

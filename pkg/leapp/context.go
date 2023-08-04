@@ -1,6 +1,7 @@
 package leapp
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/cloudwindy/mirai/pkg/lazysess"
@@ -38,6 +39,7 @@ func NewContext(E *lue.Engine, app *Application, fc *fiber.Ctx) lua.LValue {
 		"query":   ctxQuery(E, c),
 		"state":   ctxState(E, c),
 		"sess":    ctxSession(E, c),
+		"form":    ctxForm(E, c),
 	})
 	E.SetFuncs(index, ctxExports)
 
@@ -79,11 +81,12 @@ func ctxCookies(E *lue.Engine, c *Context) lua.LValue {
 
 func ctxQuery(E *lue.Engine, c *Context) lua.LValue {
 	query := E.NewTable()
-	q := c.Context().QueryArgs()
-	q.VisitAll(func(key, value []byte) {
-		query.RawSetString(string(key), lua.LString(value))
-	})
+	E.SetDict(query, c.Queries())
 	return query
+}
+
+func ctxForm(E *lue.Engine, c *Context) lua.LValue {
+	return E.ReadOnly(mtHttpGetter(c.FormValue))
 }
 
 func ctxState(E *lue.Engine, c *Context) lua.LValue {
@@ -130,7 +133,7 @@ func ctxSend(E *lue.Engine) int {
 	case lua.LString:
 		bodyStr = string(body)
 	case lua.LNumber:
-		status = int(body)
+		bodyStr = strconv.Itoa(int(body))
 	case *lua.LTable:
 		bodyBytes, err := json.ValueEncode(body)
 		if err != nil {

@@ -4,6 +4,7 @@ import (
 	"github.com/cloudwindy/mirai/lib/art"
 	"github.com/cloudwindy/mirai/lib/bcrypt"
 	"github.com/cloudwindy/mirai/lib/http"
+	"github.com/cloudwindy/mirai/lib/io"
 	"github.com/cloudwindy/mirai/lib/mail"
 	"github.com/cloudwindy/mirai/lib/odbc"
 	"github.com/cloudwindy/mirai/lib/pwdchecker"
@@ -19,7 +20,6 @@ import (
 	"github.com/vadv/gopher-lua-libs/goos"
 	"github.com/vadv/gopher-lua-libs/humanize"
 	"github.com/vadv/gopher-lua-libs/inspect"
-	"github.com/vadv/gopher-lua-libs/ioutil"
 	"github.com/vadv/gopher-lua-libs/json"
 	"github.com/vadv/gopher-lua-libs/log"
 	"github.com/vadv/gopher-lua-libs/runtime"
@@ -78,10 +78,9 @@ var stringExports = map[string]lua.LGFunction{
 }
 
 var ioExports = map[string]lua.LGFunction{
-	"read_file":  ioutil.ReadFile,
-	"write_file": ioutil.WriteFile,
-	"copy":       ioutil.Copy,
-	"copyn":      ioutil.CopyN,
+	"readfile":  io.ReadFile,
+	"writefile": io.WriteFile,
+	"copy":      io.Copy,
 }
 
 var osExports = map[string]lua.LGFunction{

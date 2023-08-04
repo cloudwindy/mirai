@@ -48,6 +48,10 @@ Context.query = {}
 ---@type Session
 Context.sess = {}
 
+-- 表单
+---@type table<string, string>
+Context.form = {}
+
 --- 发送响应。
 ---@param self Context
 ---@param status number? 状态码 (可选，默认为 200)

@@ -37,6 +37,22 @@ func DoCompiledFile(L *lua.LState, proto *lua.FunctionProto) error {
 	return L.PCall(0, lua.MultRet, nil)
 }
 
+func Unprotect(fn *lua.LFunction, self lua.LValue, nret int) lua.LGFunction {
+	return func(L *lua.LState) int {
+		L.Replace(1, self)
+		L.Insert(fn, 1)
+		L.Call(L.GetTop()-1, nret)
+		err := L.Get(-1)
+		if err != lua.LNil {
+			L.RaiseError(lua.LVAsString(err))
+		}
+		for i := 1; i <= nret-1; i++ {
+			L.Push(L.Get(i))
+		}
+		return nret - 1
+	}
+}
+
 func CheckGlobal(proto *lua.FunctionProto, source string) error {
 	for i, code := range proto.Code {
 		if opGetOpCode(code) == lua.OP_SETGLOBAL {

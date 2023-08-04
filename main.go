@@ -189,6 +189,9 @@ func start(ctx *cli.Context) error {
 	}
 	for proc != newproc {
 		proc = newproc
+		if proc == nil {
+			return nil
+		}
 		_, err := proc.Wait()
 		if err != nil {
 			return err
@@ -252,9 +255,12 @@ func worker(ctx *cli.Context, c config.Config) error {
 		fmt.Println()
 	}
 
-	storage := sbolt.New(sbolt.Config{
-		Database: path.Join(c.Data, "fiber.db"),
-	})
+	var storage fiber.Storage
+	if c.Data != "" {
+		storage = sbolt.New(sbolt.Config{
+			Database: path.Join(c.Data, "fiber.db"),
+		})
+	}
 	store := session.New(session.Config{
 		Storage: storage,
 	})

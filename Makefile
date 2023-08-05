@@ -1,7 +1,7 @@
 .PHONY: all tidy build install windows clean run docker
 
 VERSION = $(shell git describe --tags --always --dirty)
-BUILD = $(shell date +%FT%T%z)
+BUILD = $(shell date +%F)
 
 OUT = mirai
 LDFLAGS = -s -w -X main.version=$(VERSION) -X main.build=$(BUILD)

@@ -43,7 +43,7 @@ var (
 	// initialized via Makefile
 	version    = "dev"
 	build      = ""
-	ServerName = "mirai/" + version
+	servername = "mirai/" + version
 )
 
 // Color helper functions
@@ -235,7 +235,7 @@ func worker(ctx *cli.Context, c config.Config) error {
 		Use(pprof.New()).
 		Use(func(c *fiber.Ctx) error {
 			// set before next to allow modifying
-			c.Set("Server", ServerName)
+			c.Set("Server", servername)
 			return c.Next()
 		})
 
@@ -385,7 +385,7 @@ func worker(ctx *cli.Context, c config.Config) error {
 }
 
 func startInteractive(ctx *cli.Context) {
-	fmt.Printf("Mirai Server %s with %s %s\n", version, lue.LuaVersion, build)
+	fmt.Printf("Mirai Server %s %s\n", version, build)
 	app := fiber.New()
 	store := session.New()
 	capp := leapp.Config{

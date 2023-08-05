@@ -14,14 +14,14 @@ import (
 func wsAppUpgrade(E *lue.Engine) int {
 	app := E.Data(1).(*Application)
 	path := E.String(2)
-	handler := E.Fun(3)
+	fn := E.Fun(3)
 	wsConnHandler := func(c *websocket.Conn) {
 		defer c.Close()
 		E, _ := E.New()
 		defer E.Close()
 		env := E.Table(lua.EnvironIndex)
-		if err := E.CallLFun(handler, env, 0, NewWsContext(E, c)); err != nil {
-			log.Println()
+		if err := E.CallLFun(fn, env, 0, NewWsContext(E, c)); err != nil {
+			log.Println(err)
 		}
 	}
 	app.Use(path, websocket.New(wsConnHandler))

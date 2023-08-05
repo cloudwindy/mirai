@@ -22,12 +22,12 @@ var (
 )
 
 type Engine struct {
-	L       *lua.LState
-	env     *lua.LTable
-	modules map[string]Module
-	parent  *Engine
-	err     error
-	lspool  *lutpool.LSPool
+	L      *lua.LState
+	env    *lua.LTable
+	mods   map[string]Module
+	parent *Engine
+	err    error
+	lsp    *lutpool.LSPool
 	sync.Mutex
 }
 
@@ -40,10 +40,10 @@ func New(env map[string]any) *Engine {
 	L := lua.NewState()
 	lib.Open(L)
 	e := &Engine{
-		L:       L,
-		modules: make(map[string]Module),
+		L:    L,
+		mods: make(map[string]Module),
 	}
-	e.lspool = lutpool.New(lua.Options{
+	e.lsp = lutpool.New(lua.Options{
 		CallStackSize:   64,
 		RegistrySize:    1024,
 		RegistryMaxSize: 1024 * 10,
@@ -73,17 +73,18 @@ func (e *Engine) New() (E *Engine, new bool) {
 	if e.parent != nil {
 		panic("Cannot create an engine from child")
 	}
-	L, new := e.lspool.Get()
+	L, new := e.lsp.Get()
 	E = &Engine{
-		L:       L,
-		env:     e.env,
-		modules: e.modules,
-		parent:  e,
+		L:      L,
+		env:    e.env,
+		mods:   e.mods,
+		lsp:    e.lsp,
+		parent: e,
 	}
 	if new {
 		lib.Open(L)
 		L.SetGlobal("env", e.env)
-		for name, module := range e.modules {
+		for name, module := range e.mods {
 			L.SetGlobal(name, module(E))
 		}
 	}
@@ -91,18 +92,19 @@ func (e *Engine) New() (E *Engine, new bool) {
 }
 
 func (e *Engine) Close() {
-	if e.parent == nil {
-		e.lspool.Close()
-		e.L.Close()
+	if e.parent != nil {
+		e.lsp.Put(e.L)
+		return
 	}
-	e.lspool.Put(e.L)
+	e.lsp.Close()
+	e.L.Close()
 }
 
 func (e *Engine) Register(name string, module Module) *Engine {
 	e.Lock()
 	defer e.Unlock()
 	if e.parent == nil {
-		e.modules[name] = module
+		e.mods[name] = module
 	}
 	e.L.SetGlobal(name, module(e))
 	return e

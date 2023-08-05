@@ -53,8 +53,10 @@ Context.sess = {}
 Context.form = {}
 
 --- 发送响应。
----@param self Context
 ---@param status number? 状态码 (可选，默认为 200)
 ---@param body string | number | table 响应体
 ---@overload fun(self: Context, body: string | number | table)
 function Context:send(status, body) end
+
+--- 继续匹配路由或中间件。
+function Context:next() end

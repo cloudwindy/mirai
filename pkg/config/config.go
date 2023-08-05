@@ -42,11 +42,10 @@ type Limiter struct {
 
 func IsProject(projectDir string) (ok bool, err error) {
 	_, err = os.Stat(path.Join(projectDir, ProjectFileName))
-	if errors.Is(err, os.ErrNotExist) {
-		err = nil
-	}
-	if err != nil {
+	if err == nil {
 		ok = true
+	} else if errors.Is(err, os.ErrNotExist) {
+		err = nil
 	}
 	return
 }

@@ -1,7 +1,10 @@
 .PHONY: all tidy build install windows clean run docker
 
+VERSION = $(shell git describe --tags --always --dirty)
+BUILD = $(shell date +%FT%T%z)
+
 OUT = mirai
-LDFLAGS = -s -w
+LDFLAGS = -s -w -X main.version=$(VERSION) -X main.build=$(BUILD)
 GOFLAGS = -ldflags '$(LDFLAGS)'
 export CGO_ENABLED = 1
 

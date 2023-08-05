@@ -7,7 +7,6 @@ import (
 	"os/signal"
 	"path"
 	"runtime"
-	"runtime/debug"
 	"strings"
 	"syscall"
 	"time"
@@ -41,9 +40,10 @@ import (
 
 // Package info
 var (
-	// initialized via debug.BuildInfo
-	Version    = ""
-	ServerName = ""
+	// initialized via Makefile
+	version    = "dev"
+	build      = ""
+	ServerName = "mirai/" + version
 )
 
 // Color helper functions
@@ -70,7 +70,7 @@ var (
 	globalEnv    = map[string]any{
 		"OS":             runtime.GOOS,
 		"ARCH":           runtime.GOARCH,
-		"VERSION":        Version,
+		"VERSION":        version,
 		"GO_VERSION":     strings.TrimPrefix(runtime.Version(), "go"),
 		"FIBER_VERSION":  fiber.Version,
 		"SQLITE_VERSION": sqlver,
@@ -79,20 +79,11 @@ var (
 
 var DefaultPidFile = "mirai.pid"
 
-func init() {
-	bi, ok := debug.ReadBuildInfo()
-	if !ok {
-		panic("build info not available")
-	}
-	Version = bi.Main.Version
-	ServerName = "mirai/" + Version
-}
-
 func main() {
 	time.Sleep(100 * time.Millisecond)
 	app := cli.NewApp()
 	app.Usage = "Server for the Mirai Project"
-	app.Version = Version
+	app.Version = fmt.Sprintf("%s %s", version, build)
 	app.DefaultCommand = "start"
 	app.UseShortOptionHandling = true
 	app.EnableBashCompletion = true
@@ -394,7 +385,7 @@ func worker(ctx *cli.Context, c config.Config) error {
 }
 
 func startInteractive(ctx *cli.Context) {
-	fmt.Printf("Mirai Server %s with %s\n", Version, lue.LuaVersion)
+	fmt.Printf("Mirai Server %s with %s %s\n", version, lue.LuaVersion, build)
 	app := fiber.New()
 	store := session.New()
 	capp := leapp.Config{

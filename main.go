@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"path"
 	"runtime"
+	"runtime/debug"
 	"strings"
 	"syscall"
 	"time"
@@ -39,9 +40,10 @@ import (
 )
 
 // Package info
-const (
-	Version    = "1.3"
-	ServerName = "mirai/" + Version
+var (
+	// initialized via debug.BuildInfo
+	Version    = ""
+	ServerName = ""
 )
 
 // Color helper functions
@@ -76,6 +78,15 @@ var (
 )
 
 var DefaultPidFile = "mirai.pid"
+
+func init() {
+	bi, ok := debug.ReadBuildInfo()
+	if !ok {
+		panic("build info not available")
+	}
+	Version = bi.Main.Version
+	ServerName = "mirai/" + Version
+}
 
 func main() {
 	time.Sleep(100 * time.Millisecond)

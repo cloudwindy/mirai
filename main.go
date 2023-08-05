@@ -43,7 +43,7 @@ var (
 	// initialized via Makefile
 	version    = "dev"
 	build      = ""
-	servername = "mirai/" + version
+	servername = "mirai/" + strings.TrimPrefix(version, "v")
 )
 
 // Color helper functions

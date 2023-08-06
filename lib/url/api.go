@@ -78,7 +78,7 @@ func Decode(L *lua.LState) int {
 	return 1
 }
 
-var URLExports = map[string]lua.LGFunction{
+var urlAPI = map[string]lua.LGFunction{
 	"resolve": URLJoin,
 }
 
@@ -123,7 +123,7 @@ func URLGet(L *lua.LState) int {
 	case "username":
 		L.Push(lua.LString(u.User.Username()))
 	default:
-		if v, ok := URLExports[k]; ok {
+		if v, ok := urlAPI[k]; ok {
 			L.Push(L.NewFunction(v))
 		} else {
 			L.Push(lua.LNil)

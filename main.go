@@ -80,7 +80,6 @@ var (
 var DefaultPidFile = "mirai.pid"
 
 func main() {
-	time.Sleep(100 * time.Millisecond)
 	app := cli.NewApp()
 	app.Usage = "Server for the Mirai Project"
 	app.Version = fmt.Sprintf("%s %s", version, build)
@@ -104,8 +103,8 @@ func main() {
 		{
 			Name:  "start",
 			Usage: "Start the server (default)",
-			Description: "Start command finds project.lua in the specified project path. \n" +
-				"Then, it starts the server based on the configuration. \n" +
+			Description: "Start command finds project.lua in the specified project path.\n" +
+				"Then, it starts the server based on the configuration.\n" +
 				"If it is not found, it will set up a temporary server and database and enter interactive mode.",
 			ArgsUsage:       "arguments are passed to Lua scripts without parsing",
 			SkipFlagParsing: true,
@@ -113,7 +112,7 @@ func main() {
 		},
 		{
 			Name:            "run",
-			Usage:           "Run command",
+			Usage:           "Run command specified in the project.lua.",
 			ArgsUsage:       "arguments are passed to Lua scripts without parsing",
 			SkipFlagParsing: true,
 			Action:          run,
@@ -216,7 +215,7 @@ func worker(ctx *cli.Context, c config.Config) error {
 
 	app := fiber.
 		New(fiber.Config{
-			ServerHeader:          "Mirai Server",
+			ServerHeader:          servername,
 			DisableStartupMessage: true,
 		})
 	app.
@@ -366,6 +365,7 @@ func worker(ctx *cli.Context, c config.Config) error {
 		Register("db", ledb.New(c.DB)).
 		Register("cli", lecli.New(ctx.Args().Slice(), colors)).
 		Run(c.Index)
+	defer G.Close()
 
 	if err := G.Err(); err != nil {
 		return err
@@ -415,6 +415,7 @@ func startInteractive(ctx *cli.Context) {
 		Register("app", leapp.New(capp)).
 		Register("db", ledb.New(db)).
 		Register("cli", lecli.New(ctx.Args().Slice(), colors))
+	defer G.Close()
 	if err := G.Err(); err != nil {
 		fail("%v\n", err)
 	}
@@ -441,6 +442,7 @@ func run(ctx *cli.Context) error {
 		Register("db", ledb.New(c.DB)).
 		Register("cli", lecli.New(args.Tail(), colors)).
 		Run(cmd)
+	defer G.Close()
 	if err := G.Err(); err != nil {
 		fail("%v\n", err)
 	}

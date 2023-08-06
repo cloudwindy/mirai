@@ -1,7 +1,7 @@
 ---@meta
 
 ---@class httplib
-local http = {}
+http = {}
 
 --- 发送请求。
 ---@param verb string 方法
@@ -94,5 +94,3 @@ function Request:auth(username, password) end
 ---@param key string
 ---@param value string
 function Request.set(key, value) end
-
-return http

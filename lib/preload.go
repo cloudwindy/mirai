@@ -37,14 +37,12 @@ var Loads = []Load{
 
 	art.Preload,
 	bcrypt.Preload,
-	http.Preload,
 	mail.Preload,
 	odbc.Preload,
 	pwdchecker.Preload,
 	re.Preload,
 	readline.Preload,
 	uuid.Preload,
-	url.Preload,
 	urlpath.Preload,
 
 	base64.Preload,
@@ -56,7 +54,9 @@ var Loads = []Load{
 }
 
 var Loaders = map[string]Loader{
+	"http": http.Loader,
 	"json": json.Loader,
+	"url":  url.Loader,
 }
 
 func Open(L *lua.LState) {
@@ -65,7 +65,7 @@ func Open(L *lua.LState) {
 	}
 	for name, loader := range Loaders {
 		if loader(L) != 1 {
-			panic("loader must return only one value")
+			panic("loader must return and only return one value")
 		}
 		obj := L.Get(1)
 		L.SetGlobal(name, obj)

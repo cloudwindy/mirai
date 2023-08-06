@@ -1,7 +1,7 @@
 ---@meta
 
 ---@class uuidlib
-local url = {}
+url = {}
 
 --- 解析 URL。
 ---@param input string 要解析的绝对或相对的输入网址。
@@ -89,5 +89,3 @@ URL.username = ""
 ---@param path string 路径
 ---@return url_URL
 function URL.join(path) end
-
-return url

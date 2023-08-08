@@ -1,6 +1,7 @@
 # mirai
-以 Golang 编写、在 Lua 虚拟机中运行的高性能 HTTP 服务器框架，参考了 express.js 的设计。
-An expressjs-like high-performance http server framework written in Golang and Lua.
+以 Golang 编写、在 Lua 虚拟机中运行的 HTTP 服务器框架，参考了 express.js 的设计。
+
+An expressjs-like http server framework written in Golang and Lua.
 
 ## Translation
 If you're interested in translating README and documents, start an issue!
@@ -20,7 +21,7 @@ app:start()
 
 在收到请求后，会从第一个路由或中间件开始尝试匹配，如果匹配则执行，如果不匹配跳过。
 
-当请求匹配时，服务器会调用处理器，并传入与请求的上下文有关的```ctx```。```ctx```中包含了诸多实用的属性与方法，这里调用的方法是```ctx:send()```，该方法可以传入一个 HTTP 状态码和响应体。之后 HTTP 响应会立即被发送，多次调用无效。
+当请求匹配时，服务器会调用处理器，并传入与请求的上下文有关的```ctx```。这里调用的方法是```ctx:send()```，该方法可以传入一个 HTTP 状态码和响应体。之后 HTTP 响应会立即被发送，多次调用无效。
 
 有关于```app```和```ctx```的详细信息，请参考[文档](#文档)。
 
@@ -50,7 +51,9 @@ end)
 ```
 
 ## 文档
-请安装 [lua-language-server](https://github.com/LuaLS/lua-language-server)，然后将本 Git 仓库下的 types 设置为```workspace.library```。详细信息请参考 [Libraries](https://github.com/LuaLS/lua-language-server/wiki/Libraries)。
+文档是以类型定义的方式呈现的。
+
+要查看文档，请安装 [lua-language-server](https://github.com/LuaLS/lua-language-server)，然后在 [扩展管理器] (https://github.com/LuaLS/lua-language-server/wiki/Addons#vs-code-addon-manager)中找到 mirai 并安装。
 
 ## 注意
 

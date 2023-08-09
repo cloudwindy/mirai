@@ -16,16 +16,19 @@ import (
 var ProjectFileName = "project.lua"
 
 type Config struct {
-	Listen   string
-	Editing  bool
-	DataPath string
-	Root     string
-	Index    string
-	Pid      string
-	DB       DB
-	Limiter  Limiter
-	Commands map[string]string
-	Env      map[string]any
+	Index  string
+	Root   string
+	Listen string
+
+	ApiBase   string
+	AdminBase string
+	DataPath  string
+	Editing   bool
+	Pid       string
+	DB        DB
+	Limiter   Limiter
+	Commands  map[string]string
+	Env       map[string]any
 }
 
 type DB struct {
@@ -123,6 +126,12 @@ func Parse(projectDir string) (c Config, err error) {
 			Driver: "sqlite3",
 			Conn:   ":memory:",
 		}
+	}
+	if c.AdminBase == "" {
+		c.AdminBase = "/admin"
+	}
+	if c.ApiBase == "" {
+		c.ApiBase = "/api"
 	}
 
 	return

@@ -238,7 +238,7 @@ func worker(ctx *cli.Context, c config.Config) error {
 			return c.Next()
 		})
 
-	apigrp := app.Group("/api")
+	apigrp := app.Group(c.ApiBase)
 	if l := c.Limiter; l.Enabled {
 		apigrp.Use(limiter.New(limiter.Config{
 			Max:        l.Max,
@@ -251,7 +251,7 @@ func worker(ctx *cli.Context, c config.Config) error {
 		})).
 		Use(timer.Print("exec", "Script Execution"))
 
-	admingrp := apigrp.Group("/admin")
+	admingrp := apigrp.Group(c.AdminBase)
 	if c.Editing {
 		admingrp.All("/files/*", admin.Files(c.Index))
 		fmt.Print("Editing: ")
@@ -282,9 +282,9 @@ func worker(ctx *cli.Context, c config.Config) error {
 			return c.Locals(localSkip).(bool)
 		}
 		app.
-			Use(func(c *fiber.Ctx) error {
-				c.Locals(localSkip, strings.HasPrefix(c.Path(), "/api"))
-				return c.Next()
+			Use(func(ctx *fiber.Ctx) error {
+				ctx.Locals(localSkip, strings.HasPrefix(ctx.Path(), c.ApiBase))
+				return ctx.Next()
 			}).
 			Use(cache.New(cache.Config{
 				Next:         next,
@@ -353,7 +353,7 @@ func worker(ctx *cli.Context, c config.Config) error {
 	}
 
 	capp := leapp.Config{
-		App:    app.Group("/api"),
+		App:    app.Group(c.ApiBase),
 		Store:  store,
 		Start:  start,
 		Reload: reload,

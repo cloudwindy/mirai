@@ -27,6 +27,7 @@ func New(L *lua.LState) int {
 			"__index":    URLGet,
 			"__newindex": URLSet,
 			"__concat":   URLJoin,
+			"__tostring": URLString,
 		})
 	}
 	L.SetMetatable(obj, mt)
@@ -188,6 +189,15 @@ func URLJoin(L *lua.LState) int {
 	L.SetMetatable(ud, mt)
 
 	L.Push(ud)
+	return 1
+}
+
+func URLString(L *lua.LState) int {
+	ud := L.CheckUserData(1)
+
+	u := ud.Value.(*url.URL)
+	L.Push(lua.LString(u.String()))
+
 	return 1
 }
 

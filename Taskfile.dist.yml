@@ -1,15 +1,15 @@
-version: '3'
+version: "3"
 
 vars:
-  version:
+  VERSION:
     sh: git describe --tags --always --dirty
-  build:
+  BUILD:
     sh: date +%F
-  repo: cloudwindy
-  out: mirai
-  ldflags: -s -w -X main.version={{.version}} -X main.build={{.build}}
-  goflags: -ldflags '{{.ldflags}}'
-  docker_tag: '{{.repo}}/{{.out}}'
+  LDFLAGS: -s -w -X main.version={{.VERSION}} -X main.build={{.BUILD}}
+  GOFLAGS: -ldflags '{{.LDFLAGS}}'
+  DOCKER_REPO: cloudwindy
+  DOCKER_NAME: mirai
+  DOCKER_TAG: "{{.DOCKER_REPO}}/{{.DOCKER_NAME}}"
 
 env:
   CGO_ENABLED: 1
@@ -18,39 +18,49 @@ tasks:
   run:
     desc: Run immediately.
     cmds:
-      - go run {{.goflags}} .
+      - go run {{.GOFLAGS}} .
+
   build:
-    desc: Build mirai for this platform.
+    desc: Build for this platform.
     cmds:
-      - go build -o '{{.out}}' {{.goflags}} .
+      - go build -o '{{.OUT}}' {{.GOFLAGS}} .
+
   install:
-    desc: Install mirai on your system.
+    desc: Install on your system.
     cmds:
-      - go install {{.goflags}} .
+      - go install {{.GOFLAGS}} .
+
   windows:
-    desc: Build mirai for Windows platform.
+    desc: Build with MinGW, targeting Windows x64 .
     cmds:
-      - go build -o '{{.out}}.exe' {{.goflags}}
+      - go build -o '{{.OUT}}.exe' {{.GOFLAGS}}
     env:
       GOOS: windows
       GOARCH: amd64
       CC: x86_64-w64-mingw32-gcc
+
   tidy:
     desc: Create or tidy go vendor directory.
     cmds:
       - go mod tidy
       - go mod vendor
+
   clean:
     desc: Clean build cache and binary.
     cmds:
       - go clean
-      - rm -f '{{.out}}'
-      - rm -f '{{.out}}.exe'
+      - rm -f '{{.OUT}}'
+      - rm -f '{{.OUT}}.exe'
+
   test:
     desc: Run all the tests.
     cmds:
       - go test .
+
   docker:
     desc: Build docker image for this architecture.
+    summary: |
+      This command can be used without a golang toolchain installed. Golang
+      image will be used for building instead.
     cmds:
-      - docker build --pull -t {{.docker_tag}} .
+      - docker build --pull -t {{.DOCKER_TAG}} .

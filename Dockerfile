@@ -3,11 +3,16 @@ FROM golang:1.20-alpine AS builder
 WORKDIR /usr/src/app
 
 # pre-copy/cache go.mod for pre-downloading dependencies and only redownloading them in subsequent builds if they change
+# also, prepare task for building
 COPY go.mod go.sum ./
-RUN go mod download && go mod verify
+RUN set -ex && \
+  go mod download && \
+  go mod verify && \
+  go install github.com/go-task/task/v3/cmd/task@latest
 
 COPY . .
-RUN go build -v -o /usr/local/bin/mirai -ldflags '-s -w' .
+RUN set -ex && \
+  OUT=/usr/local/bin/mirai task build
 
 FROM alpine:latest
 

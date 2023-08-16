@@ -1,0 +1,56 @@
+version: '3'
+
+vars:
+  version:
+    sh: git describe --tags --always --dirty
+  build:
+    sh: date +%F
+  repo: cloudwindy
+  out: mirai
+  ldflags: -s -w -X main.version={{.version}} -X main.build={{.build}}
+  goflags: -ldflags '{{.ldflags}}'
+  docker_tag: '{{.repo}}/{{.out}}'
+
+env:
+  CGO_ENABLED: 1
+
+tasks:
+  run:
+    desc: Run immediately.
+    cmds:
+      - go run {{.goflags}} .
+  build:
+    desc: Build mirai for this platform.
+    cmds:
+      - go build -o '{{.out}}' {{.goflags}} .
+  install:
+    desc: Install mirai on your system.
+    cmds:
+      - go install {{.goflags}} .
+  windows:
+    desc: Build mirai for Windows platform.
+    cmds:
+      - go build -o '{{.out}}.exe' {{.goflags}}
+    env:
+      GOOS: windows
+      GOARCH: amd64
+      CC: x86_64-w64-mingw32-gcc
+  tidy:
+    desc: Create or tidy go vendor directory.
+    cmds:
+      - go mod tidy
+      - go mod vendor
+  clean:
+    desc: Clean build cache and binary.
+    cmds:
+      - go clean
+      - rm -f '{{.out}}'
+      - rm -f '{{.out}}.exe'
+  test:
+    desc: Run all the tests.
+    cmds:
+      - go test .
+  docker:
+    desc: Build docker image for this architecture.
+    cmds:
+      - docker build --pull -t {{.docker_tag}} .

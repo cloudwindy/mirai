@@ -69,7 +69,7 @@ end)
 ## 文档
 文档是以类型定义的方式呈现的。
 
-要查看文档，请安装 [lua-language-server](https://github.com/LuaLS/lua-language-server)，然后在 [插件管理器] (https://github.com/LuaLS/lua-language-server/wiki/Addons#vs-code-addon-manager)中找到 Mirai Server 并安装。
+要查看文档，请安装 [lua-language-server](https://github.com/LuaLS/lua-language-server)，然后在 [插件管理器](https://github.com/LuaLS/lua-language-server/wiki/Addons#vs-code-addon-manager)中找到 Mirai Server 并安装。
 
 ## 注意
 

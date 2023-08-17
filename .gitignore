@@ -8,4 +8,5 @@
 
 # misc
 .vscode
+.luarc.json
 /Taskfile.yml

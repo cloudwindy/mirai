@@ -31,7 +31,7 @@ tasks:
       - go install {{.GOFLAGS}} .
 
   windows:
-    desc: Build with MinGW, targeting Windows x64 .
+    desc: Build with MinGW, targeting Windows x64.
     cmds:
       - go build -o '{{.OUT}}.exe' {{.GOFLAGS}}
     env:

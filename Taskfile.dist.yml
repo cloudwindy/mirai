@@ -1,6 +1,8 @@
 version: "3"
 
 vars:
+  NAME: mirai
+  WINDOWS_NAME: mirai.exe
   VERSION:
     sh: git describe --tags --always --dirty
   BUILD:
@@ -23,7 +25,7 @@ tasks:
   build:
     desc: Build for this platform.
     cmds:
-      - go build -o '{{.OUT}}' {{.GOFLAGS}} .
+      - go build -o '{{.NAME}}' {{.GOFLAGS}} .
 
   install:
     desc: Install on your system.
@@ -33,7 +35,7 @@ tasks:
   windows:
     desc: Build with MinGW, targeting Windows x64.
     cmds:
-      - go build -o '{{.OUT}}.exe' {{.GOFLAGS}}
+      - go build -o '{{.WINDOWS_NAME}}' {{.GOFLAGS}}
     env:
       GOOS: windows
       GOARCH: amd64

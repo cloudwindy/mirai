@@ -1,12 +1,12 @@
-local climate = io.read_file('climate.json')
-local json = require 'json'
+-- Mirai Project version: 1.3.5
+local climate = os.read('climate.json')
 local c, err = json.decode(climate)
 if err then
-  cli.fail("%v\n", err)
+  cli.fail('%v\n', err)
   return
 end
 
-app:get('/climate/:country', function(ctx)
+app:get('/api/climate/:country', function(ctx)
   local country = ctx.params['country']
   local temp = {}
   for _, v in ipairs(c) do

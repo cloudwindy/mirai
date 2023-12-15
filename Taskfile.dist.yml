@@ -4,7 +4,7 @@ vars:
   NAME: mirai
   WINDOWS_NAME: mirai.exe
   VERSION:
-    sh: git describe --tags --always --dirty
+    sh: git describe --tags --always --long
   BUILD:
     sh: date +%F
   LDFLAGS: -s -w -X main.version={{.VERSION}} -X main.build={{.BUILD}}

@@ -12,6 +12,7 @@ import (
 	"github.com/cloudwindy/mirai/lib/re"
 	"github.com/cloudwindy/mirai/lib/readline"
 	"github.com/cloudwindy/mirai/lib/strings"
+	"github.com/cloudwindy/mirai/lib/time"
 	"github.com/cloudwindy/mirai/lib/url"
 	"github.com/cloudwindy/mirai/lib/urlpath"
 	"github.com/cloudwindy/mirai/lib/uuid"
@@ -21,7 +22,6 @@ import (
 	"github.com/vadv/gopher-lua-libs/inspect"
 	"github.com/vadv/gopher-lua-libs/json"
 	"github.com/vadv/gopher-lua-libs/storage"
-	"github.com/vadv/gopher-lua-libs/time"
 	lua "github.com/yuin/gopher-lua"
 )
 
@@ -53,6 +53,7 @@ var Loads = []Load{
 	pwdchecker.Preload,
 	re.Preload,
 	readline.Preload,
+	time.Preload,
 	uuid.Preload,
 	urlpath.Preload,
 
@@ -61,7 +62,6 @@ var Loads = []Load{
 	humanize.Preload,
 	inspect.Preload,
 	storage.Preload,
-	time.Preload,
 }
 
 var Loaders = map[string]Loader{

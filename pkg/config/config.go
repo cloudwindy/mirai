@@ -54,7 +54,9 @@ func IsProject(projectDir string) (ok bool, err error) {
 }
 
 func Parse(projectDir string) (c Config, err error) {
-	L := lua.NewState()
+	L := lua.NewState(lua.Options{
+		SkipOpenLibs: true,
+	})
 	defer L.Close()
 	lib.Open(L)
 

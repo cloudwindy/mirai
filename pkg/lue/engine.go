@@ -37,7 +37,9 @@ type (
 )
 
 func New(env map[string]any) *Engine {
-	L := lua.NewState()
+	L := lua.NewState(lua.Options{
+		SkipOpenLibs: true,
+	})
 	lib.Open(L)
 	e := &Engine{
 		L:    L,
@@ -47,6 +49,7 @@ func New(env map[string]any) *Engine {
 		CallStackSize:   64,
 		RegistrySize:    1024,
 		RegistryMaxSize: 1024 * 10,
+		SkipOpenLibs:    true,
 	})
 	if env != nil {
 		t := L.NewTable()

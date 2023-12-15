@@ -295,13 +295,6 @@ func worker(ctx *cli.Context, c config.Config) error {
 			Static("/", c.Root, fiber.Static{
 				Next:      next,
 				ByteRange: true,
-			}).
-			Get("*", func(c *fiber.Ctx) error {
-				if next(c) {
-					return c.Next()
-				}
-				c.Path("/")
-				return c.RestartRouting()
 			})
 	}
 
@@ -353,7 +346,7 @@ func worker(ctx *cli.Context, c config.Config) error {
 	}
 
 	capp := leapp.Config{
-		App:    app.Group(c.ApiBase),
+		App:    app,
 		Store:  store,
 		Start:  start,
 		Reload: reload,

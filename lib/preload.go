@@ -30,6 +30,17 @@ type (
 	Loader func(L *lua.LState) int
 )
 
+// var Opens = map[string]Loader{
+// 	lua.TabLibName:       lua.OpenTable,
+// 	lua.IoLibName:        lua.OpenIo,
+// 	lua.OsLibName:        lua.OpenOs,
+// 	lua.StringLibName:    lua.OpenString,
+// 	lua.MathLibName:      lua.OpenMath,
+// 	lua.DebugLibName:     lua.OpenDebug,
+// 	lua.ChannelLibName:   lua.OpenChannel,
+// 	lua.CoroutineLibName: lua.OpenCoroutine,
+// }
+
 var Loads = []Load{
 	io.Load,
 	os.Load,
@@ -60,12 +71,13 @@ var Loaders = map[string]Loader{
 }
 
 func Open(L *lua.LState) {
+	L.OpenLibs()
 	for _, load := range Loads {
 		load(L)
 	}
-	for name, loader := range Loaders {
-		if loader(L) != 1 {
-			panic("loader must return and only return one value")
+	for name, load := range Loaders {
+		if load(L) != 1 {
+			panic("loaders must return and only return one value")
 		}
 		obj := L.Get(1)
 		L.SetGlobal(name, obj)

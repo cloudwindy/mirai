@@ -12,9 +12,7 @@ import (
 	lua "github.com/yuin/gopher-lua"
 )
 
-var (
-	CmdTimeout = 10
-)
+var CmdTimeout = 10
 
 // System lua os.system(command) return {status=0, stdout="", stderr=""}
 func System(L *lua.LState) int {

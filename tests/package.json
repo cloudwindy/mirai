@@ -1,0 +1,7 @@
+{
+  "main": "server.js",
+  "dependencies": {
+    "koa": "^2.14.2",
+    "koa-router": "^12.0.1"
+  }
+}

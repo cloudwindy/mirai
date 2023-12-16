@@ -6,6 +6,10 @@ if err then
   return
 end
 
+app:get('/test', function (ctx)
+  ctx:send('Good!')
+end)
+
 app:get('/api/climate/:country', function(ctx)
   local country = ctx.params['country']
   local temp = {}
@@ -22,4 +26,5 @@ app:get('/api/climate/:country', function(ctx)
   ctx:send(tostring(avg))
 end)
 
+app:start()
 cli.succ('部署完成\n')

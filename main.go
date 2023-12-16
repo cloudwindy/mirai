@@ -3,6 +3,7 @@ package main
 import (
 	_ "embed"
 	"fmt"
+	"net"
 	"os"
 	"os/signal"
 	"path"
@@ -157,13 +158,13 @@ func start(ctx *cli.Context) error {
 	}
 	defer os.Remove(c.Pid)
 
-	ln, err := daemon.Forked(c.Listen)
+	ln, err := net.Listen("tcp", c.Listen)
 	if err != nil {
 		return err
 	}
 
 	var proc, newproc *os.Process
-	proc, err = daemon.Fork(wd, ln)
+	proc, err = daemon.Fork(wd, ln.(*net.TCPListener))
 	if err != nil {
 		return err
 	}
@@ -176,7 +177,7 @@ func start(ctx *cli.Context) error {
 			if err := proc.Kill(); err != nil {
 				fail("%v\n", err)
 			}
-			if newproc, err = daemon.Fork(wd, ln); err != nil {
+			if newproc, err = daemon.Fork(wd, ln.(*net.TCPListener)); err != nil {
 				fail("%v\n", err)
 			}
 		case syscall.SIGTERM:
@@ -213,11 +214,14 @@ func worker(ctx *cli.Context, c config.Config) error {
 		return err
 	}
 
+	var capp leapp.Config
+
 	app := fiber.
 		New(fiber.Config{
 			ServerHeader:          servername,
 			DisableStartupMessage: true,
 		})
+	capp.App = app
 	app.
 		Use(timer.Print("total", "Total Time")).
 		Use(favicon.New()).
@@ -265,7 +269,7 @@ func worker(ctx *cli.Context, c config.Config) error {
 			Database: path.Join(c.DataPath, "fiber.db"),
 		})
 	}
-	store := session.New(session.Config{
+	capp.Store = session.New(session.Config{
 		Storage: storage,
 	})
 
@@ -298,7 +302,7 @@ func worker(ctx *cli.Context, c config.Config) error {
 			})
 	}
 
-	start := func(_ string) error {
+	capp.Start = func(_ string) error {
 		go func() {
 			if err := app.Listener(ln); err != nil {
 				panic(errors.Wrap(err, "http start"))
@@ -307,13 +311,12 @@ func worker(ctx *cli.Context, c config.Config) error {
 		return nil
 	}
 
-	var reload func() error
 	if daemon.IsChild() {
 		pid, err := daemon.ReadPid(c.Pid)
 		if err != nil {
 			return err
 		}
-		reload = func() error {
+		capp.Reload = func() error {
 			fmt.Println("reloading...")
 
 			if err := daemon.Kill(pid, syscall.SIGHUP); err != nil {
@@ -325,7 +328,7 @@ func worker(ctx *cli.Context, c config.Config) error {
 		}
 	}
 
-	stop := func(timeout time.Duration) error {
+	capp.Stop = func(timeout time.Duration) error {
 		fmt.Print("\nshutting down...")
 		defer fmt.Println()
 
@@ -343,14 +346,6 @@ func worker(ctx *cli.Context, c config.Config) error {
 		}
 
 		return nil
-	}
-
-	capp := leapp.Config{
-		App:    app,
-		Store:  store,
-		Start:  start,
-		Reload: reload,
-		Stop:   stop,
 	}
 
 	G := lue.New(globalEnv).

@@ -2,6 +2,7 @@
 
 # dependencies
 /vendor
+node_modules
 
 # build
 /mirai*

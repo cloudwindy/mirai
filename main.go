@@ -169,6 +169,7 @@ func start(ctx *cli.Context) error {
 		return err
 	}
 	if proc == nil {
+		warn("Running in worker mode. This disables app:reload.\n")
 		return worker(ctx, c)
 	}
 	handler := func(sig os.Signal) {

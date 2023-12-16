@@ -18,7 +18,6 @@ func Fork(wd string, ln *net.TCPListener) (proc *os.Process, err error) {
 	}
 	args := make([]string, len(os.Args))
 	copy(args, os.Args)
-	args[0] = flagWorker
 	cmd := &exec.Cmd{
 		Path:   ex,
 		Dir:    wd,
@@ -56,14 +55,11 @@ func Forked(listen string) (ln *net.TCPListener, err error) {
 	} else {
 		listener, err = net.Listen("tcp", listen)
 	}
-	if err != nil {
-		return nil, err
-	}
 	return listener.(*net.TCPListener), err
 }
 
 func WritePid(path string) error {
-	return os.WriteFile(path, []byte(strconv.Itoa(os.Getpid())), 0o777)
+	return os.WriteFile(path, []byte(strconv.Itoa(os.Getpid())), 0o600)
 }
 
 func ReadPid(path string) (pid int, err error) {

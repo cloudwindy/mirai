@@ -21,7 +21,7 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.19
 	github.com/pkg/errors v0.9.1
 	github.com/ucarion/urlpath v0.0.0-20200424170820-7ccc79b76bbb
-	github.com/urfave/cli/v2 v2.26.0
+	github.com/urfave/cli/v3 v3.0.0-alpha7
 	github.com/vadv/gopher-lua-libs v0.5.0
 	github.com/wagslane/go-password-validator v0.3.0
 	github.com/yuin/gluamapper v0.0.0-20150323120927-d836955830e7
@@ -34,7 +34,6 @@ require (
 
 require (
 	github.com/andybalholm/brotli v1.0.6 // indirect
-	github.com/cpuguy83/go-md2man/v2 v2.0.3 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/fasthttp/websocket v1.5.7 // indirect
 	github.com/gofiber/utils v1.1.0 // indirect
@@ -45,7 +44,6 @@ require (
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/philhofer/fwd v1.1.2 // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect
-	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/savsgio/gotils v0.0.0-20230208104028-c358bd845dee // indirect
 	github.com/tinylib/msgp v1.1.9 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect

@@ -1,4 +1,4 @@
--- Mirai Project version: 1.3.5
+-- Mirai Project version: 1.4.0
 local climate = os.read('climate.json')
 local c, err = json.decode(climate)
 if err then

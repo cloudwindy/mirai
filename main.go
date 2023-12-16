@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	_ "embed"
 	"fmt"
 	"net"
@@ -36,7 +37,7 @@ import (
 	sbolt "github.com/gofiber/storage/bbolt"
 	"github.com/mattn/go-sqlite3"
 	"github.com/pkg/errors"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 )
 
 // Package info
@@ -81,18 +82,19 @@ var (
 var DefaultPidFile = "mirai.pid"
 
 func main() {
-	app := cli.NewApp()
+	var app cli.Command
 	app.Usage = "Server for the Mirai Project"
 	app.Version = fmt.Sprintf("%s %s", version, build)
 	app.DefaultCommand = "start"
 	app.UseShortOptionHandling = true
-	app.EnableBashCompletion = true
+	app.EnableShellCompletion = true
 	app.Flags = []cli.Flag{
-		&cli.PathFlag{
+		&cli.StringFlag{
 			Name:    "proj",
 			Aliases: []string{"p"},
 			Usage:   "set project path",
 			Value:   ".",
+			Sources: cli.Files("."),
 		},
 		&cli.BoolFlag{
 			Name:    "interactive",
@@ -107,58 +109,56 @@ func main() {
 			Description: "Start command finds project.lua in the specified project path.\n" +
 				"Then, it starts the server based on the configuration.\n" +
 				"If it is not found, it will set up a temporary server and database and enter interactive mode.",
-			ArgsUsage:       "arguments are passed to Lua scripts without parsing",
-			SkipFlagParsing: true,
-			Action:          start,
+			ArgsUsage: "arguments are passed to Lua scripts without parsing",
+			Action:    start,
 		},
 		{
-			Name:            "run",
-			Usage:           "Run command specified in the project.lua.",
-			ArgsUsage:       "arguments are passed to Lua scripts without parsing",
-			SkipFlagParsing: true,
-			Action:          run,
+			Name:      "run",
+			Usage:     "Run command specified in the project.lua.",
+			ArgsUsage: "arguments are passed to Lua scripts without parsing",
+			Action:    run,
 		},
 	}
 
-	if err := app.Run(os.Args); err != nil {
+	if err := app.Run(context.Background(), os.Args); err != nil {
 		color.Red("%v", err)
 	}
 }
 
-func start(ctx *cli.Context) error {
+func start(ctx context.Context, cmd *cli.Command) error {
 	wd, err := os.Getwd()
 	if err != nil {
 		return err
 	}
-	ok, err := config.IsProject(ctx.Path("proj"))
+	ok, err := config.IsProject(cmd.String("proj"))
 	if err != nil {
 		return err
 	}
 	if !ok {
-		startInteractive(ctx)
+		startInteractive(ctx, cmd)
 		return nil
 	}
-	c, err := config.Parse(ctx.Path("proj"))
+	cfg, err := config.Parse(cmd.String("proj"))
 	if err != nil {
 		return err
 	}
-	for k, v := range c.Env {
+	for k, v := range cfg.Env {
 		globalEnv[k] = v
 	}
 
-	if c.Pid == "" {
-		c.Pid = path.Join(os.TempDir(), DefaultPidFile)
+	if cfg.Pid == "" {
+		cfg.Pid = path.Join(os.TempDir(), DefaultPidFile)
 	}
 	if daemon.IsChild() || runtime.GOOS == "windows" {
-		return worker(ctx, c)
+		return worker(cmd, cfg)
 	}
 
-	if err = daemon.WritePid(c.Pid); err != nil {
+	if err = daemon.WritePid(cfg.Pid); err != nil {
 		return err
 	}
-	defer os.Remove(c.Pid)
+	defer os.Remove(cfg.Pid)
 
-	ln, err := net.Listen("tcp", c.Listen)
+	ln, err := net.Listen("tcp", cfg.Listen)
 	if err != nil {
 		return err
 	}
@@ -169,8 +169,8 @@ func start(ctx *cli.Context) error {
 		return err
 	}
 	if proc == nil {
-		warn("Running in worker mode. This disables app:reload.\n")
-		return worker(ctx, c)
+		warn("warn: running in worker mode\n")
+		return worker(cmd, cfg)
 	}
 	handler := func(sig os.Signal) {
 		switch sig {
@@ -207,10 +207,10 @@ func start(ctx *cli.Context) error {
 	return nil
 }
 
-func worker(ctx *cli.Context, c config.Config) error {
+func worker(cmd *cli.Command, cfg config.Config) error {
 	sigln := daemon.Listen(daemon.ExitHandler, os.Interrupt)
 
-	ln, err := daemon.Forked(c.Listen)
+	ln, err := daemon.Forked(cfg.Listen)
 	if err != nil {
 		return err
 	}
@@ -243,8 +243,8 @@ func worker(ctx *cli.Context, c config.Config) error {
 			return c.Next()
 		})
 
-	apigrp := app.Group(c.ApiBase)
-	if l := c.Limiter; l.Enabled {
+	apigrp := app.Group(cfg.ApiBase)
+	if l := cfg.Limiter; l.Enabled {
 		apigrp.Use(limiter.New(limiter.Config{
 			Max:        l.Max,
 			Expiration: time.Duration(l.Dur) * time.Second,
@@ -256,26 +256,26 @@ func worker(ctx *cli.Context, c config.Config) error {
 		})).
 		Use(timer.Print("exec", "Script Execution"))
 
-	admingrp := apigrp.Group(c.AdminBase)
-	if c.Editing {
-		admingrp.All("/files/*", admin.Files(c.Index))
+	admingrp := apigrp.Group(cfg.AdminBase)
+	if cfg.Editing {
+		admingrp.All("/files/*", admin.Files(cfg.Index))
 		fmt.Print("Editing: ")
 		warn("Allowed")
 		fmt.Println()
 	}
 
 	var storage fiber.Storage
-	if c.DataPath != "" {
+	if cfg.DataPath != "" {
 		storage = sbolt.New(sbolt.Config{
-			Database: path.Join(c.DataPath, "fiber.db"),
+			Database: path.Join(cfg.DataPath, "fiber.db"),
 		})
 	}
 	capp.Store = session.New(session.Config{
 		Storage: storage,
 	})
 
-	if c.Root != "" {
-		ok, err := dir.Is(c.Root)
+	if cfg.Root != "" {
+		ok, err := dir.Is(cfg.Root)
 		if !ok {
 			return errors.New("root directory does not exist")
 		}
@@ -288,7 +288,7 @@ func worker(ctx *cli.Context, c config.Config) error {
 		}
 		app.
 			Use(func(ctx *fiber.Ctx) error {
-				ctx.Locals(localSkip, strings.HasPrefix(ctx.Path(), c.ApiBase))
+				ctx.Locals(localSkip, strings.HasPrefix(ctx.Path(), cfg.ApiBase))
 				return ctx.Next()
 			}).
 			Use(cache.New(cache.Config{
@@ -297,7 +297,7 @@ func worker(ctx *cli.Context, c config.Config) error {
 				CacheControl: false,
 				Expiration:   72 * time.Hour,
 			})).
-			Static("/", c.Root, fiber.Static{
+			Static("/", cfg.Root, fiber.Static{
 				Next:      next,
 				ByteRange: true,
 			})
@@ -313,7 +313,7 @@ func worker(ctx *cli.Context, c config.Config) error {
 	}
 
 	if daemon.IsChild() {
-		pid, err := daemon.ReadPid(c.Pid)
+		pid, err := daemon.ReadPid(cfg.Pid)
 		if err != nil {
 			return err
 		}
@@ -352,16 +352,16 @@ func worker(ctx *cli.Context, c config.Config) error {
 	G := lue.New(globalEnv)
 	defer G.Close()
 	G.Register("app", leapp.New(capp)).
-		Register("db", ledb.New(c.DB)).
-		Register("cli", lecli.New(ctx.Args().Slice(), colors)).
-		Run(c.Index)
+		Register("db", ledb.New(cfg.DB)).
+		Register("cli", lecli.New(cmd.Args().Slice(), colors)).
+		Run(cfg.Index)
 
 	if err := G.Err(); err != nil {
 		return err
 	}
 
 	sigln.Close()
-	if ctx.Bool("interactive") {
+	if cmd.Bool("interactive") {
 		interactive(G)
 	} else {
 		c := make(chan os.Signal, 1)
@@ -373,7 +373,7 @@ func worker(ctx *cli.Context, c config.Config) error {
 	return nil
 }
 
-func startInteractive(ctx *cli.Context) {
+func startInteractive(ctx context.Context, cmd *cli.Command) {
 	fmt.Printf("Mirai Server %s %s\n", version, build)
 	app := fiber.New()
 	store := session.New()
@@ -404,35 +404,47 @@ func startInteractive(ctx *cli.Context) {
 	defer G.Close()
 	G.Register("app", leapp.New(capp)).
 		Register("db", ledb.New(db)).
-		Register("cli", lecli.New(ctx.Args().Slice(), colors))
+		Register("cli", lecli.New(cmd.Args().Slice(), colors))
 	if err := G.Err(); err != nil {
 		fail("%v\n", err)
 	}
 	interactive(G)
 }
 
-func run(ctx *cli.Context) error {
-	args := ctx.Args()
+func run(ctx context.Context, cmd *cli.Command) error {
+	var path string
+
+	args := cmd.Args()
 	if args.Len() < 1 {
 		return errors.New("command not specified")
 	}
-	c, err := config.Parse(ctx.Path("proj"))
+
+	ok, err := config.IsProject(cmd.String("proj"))
 	if err != nil {
-		warn("Project manifest file not found.\n")
-	} else {
-		for k, v := range c.Env {
-			globalEnv[k] = v
-		}
+		return err
 	}
-	cmd, ok := c.Commands[args.First()]
-	if !ok {
-		cmd = args.First()
-	}
+
 	G := lue.New(globalEnv)
 	defer G.Close()
-	G.Register("db", ledb.New(c.DB)).
-		Register("cli", lecli.New(args.Tail(), colors)).
-		Run(cmd)
+	if ok {
+		cfg, err := config.Parse(cmd.String("proj"))
+		if err != nil {
+			return err
+		}
+		for k, v := range cfg.Env {
+			globalEnv[k] = v
+		}
+		path, ok = cfg.Commands[args.First()]
+		if !ok {
+			path = args.First()
+		}
+		G.Register("db", ledb.New(cfg.DB))
+	} else {
+		warn("warn: project manifest not found\n")
+		path = args.First()
+	}
+	G.Register("cli", lecli.New(args.Tail(), colors)).
+		Run(path)
 	if err := G.Err(); err != nil {
 		fail("%v\n", err)
 	}

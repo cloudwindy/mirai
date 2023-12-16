@@ -17,6 +17,8 @@ jobs:
 
     - name: Set up Go
       uses: actions/setup-go@v5
+      with:
+        check-latest: true
     
     - name: Set up Task
       uses: arduino/setup-task@v1

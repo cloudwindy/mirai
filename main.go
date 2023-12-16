@@ -349,12 +349,12 @@ func worker(ctx *cli.Context, c config.Config) error {
 		return nil
 	}
 
-	G := lue.New(globalEnv).
-		Register("app", leapp.New(capp)).
+	G := lue.New(globalEnv)
+	defer G.Close()
+	G.Register("app", leapp.New(capp)).
 		Register("db", ledb.New(c.DB)).
 		Register("cli", lecli.New(ctx.Args().Slice(), colors)).
 		Run(c.Index)
-	defer G.Close()
 
 	if err := G.Err(); err != nil {
 		return err
@@ -400,11 +400,11 @@ func startInteractive(ctx *cli.Context) {
 		Driver: "sqlite3",
 		Conn:   ":memory:",
 	}
-	G := lue.New(globalEnv).
-		Register("app", leapp.New(capp)).
+	G := lue.New(globalEnv)
+	defer G.Close()
+	G.Register("app", leapp.New(capp)).
 		Register("db", ledb.New(db)).
 		Register("cli", lecli.New(ctx.Args().Slice(), colors))
-	defer G.Close()
 	if err := G.Err(); err != nil {
 		fail("%v\n", err)
 	}
@@ -418,20 +418,21 @@ func run(ctx *cli.Context) error {
 	}
 	c, err := config.Parse(ctx.Path("proj"))
 	if err != nil {
-		return err
-	}
-	for k, v := range c.Env {
-		globalEnv[k] = v
+		warn("Project manifest file not found.\n")
+	} else {
+		for k, v := range c.Env {
+			globalEnv[k] = v
+		}
 	}
 	cmd, ok := c.Commands[args.First()]
 	if !ok {
-		return errors.New("command not found")
+		cmd = args.First()
 	}
-	G := lue.New(globalEnv).
-		Register("db", ledb.New(c.DB)).
+	G := lue.New(globalEnv)
+	defer G.Close()
+	G.Register("db", ledb.New(c.DB)).
 		Register("cli", lecli.New(args.Tail(), colors)).
 		Run(cmd)
-	defer G.Close()
 	if err := G.Err(); err != nil {
 		fail("%v\n", err)
 	}

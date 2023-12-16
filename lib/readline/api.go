@@ -24,7 +24,7 @@ func Readline(L *lua.LState) int {
 func AddHistory(L *lua.LState) int {
 	content := L.CheckString(1)
 	if err := readline.AddHistory(content); err != nil {
-		L.RaiseError("readline addhistory: %v", err)
+		L.RaiseError("readline add_history: %v", err)
 	}
 	return 0
 }

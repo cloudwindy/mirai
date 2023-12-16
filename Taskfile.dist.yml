@@ -32,6 +32,15 @@ tasks:
     cmds:
       - go install {{.GOFLAGS}} .
 
+  arm:
+    desc: Build targeting Linux arm64.
+    cmds:
+      - go install {{.GOFLAGS}} .
+    env:
+      GOOS: linux
+      GOARCH: arm64
+      CC: aarch64-linux-gcc
+
   windows:
     desc: Build with MinGW, targeting Windows x64.
     cmds:

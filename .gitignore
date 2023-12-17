@@ -9,5 +9,5 @@ node_modules
 
 # misc
 .vscode
-.luarc.json
+.luarc*
 /Taskfile.yml

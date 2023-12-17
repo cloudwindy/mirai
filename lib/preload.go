@@ -6,6 +6,7 @@ import (
 	"github.com/cloudwindy/mirai/lib/http"
 	"github.com/cloudwindy/mirai/lib/io"
 	"github.com/cloudwindy/mirai/lib/mail"
+	"github.com/cloudwindy/mirai/lib/markdown"
 	"github.com/cloudwindy/mirai/lib/odbc"
 	"github.com/cloudwindy/mirai/lib/os"
 	"github.com/cloudwindy/mirai/lib/pwdchecker"
@@ -49,6 +50,7 @@ var Loads = []Load{
 	art.Preload,
 	bcrypt.Preload,
 	mail.Preload,
+	markdown.Preload,
 	odbc.Preload,
 	pwdchecker.Preload,
 	re.Preload,

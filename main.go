@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"path"
+	"regexp"
 	"runtime"
 	"strings"
 	"syscall"
@@ -42,10 +43,15 @@ import (
 
 // Package info
 var (
-	// initialized via Makefile
-	version    = "dev"
-	build      = ""
-	servername = "mirai/" + strings.TrimPrefix(version, "v")
+	// initialized by Makefile
+	version = "dev"
+	build   = ""
+)
+
+var (
+	version_match = regexp.MustCompile(`v([^-]*)`)
+	version_clean = version_match.FindStringSubmatch(version)
+	servername    = "mirai/" + version_clean[1]
 )
 
 // Color helper functions
@@ -82,7 +88,7 @@ var (
 var DefaultPidFile = "mirai.pid"
 
 func main() {
-	var app cli.Command
+	app := new(cli.Command)
 	app.Usage = "Server for the Mirai Project"
 	app.Version = fmt.Sprintf("%s %s", version, build)
 	app.DefaultCommand = "start"
@@ -259,9 +265,7 @@ func worker(cmd *cli.Command, cfg config.Config) error {
 	admingrp := apigrp.Group(cfg.AdminBase)
 	if cfg.Editing {
 		admingrp.All("/files/*", admin.Files(cfg.Index))
-		fmt.Print("Editing: ")
-		warn("Allowed")
-		fmt.Println()
+		warn("warn: editing allowed\n")
 	}
 
 	var storage fiber.Storage
@@ -412,8 +416,6 @@ func startInteractive(ctx context.Context, cmd *cli.Command) {
 }
 
 func run(ctx context.Context, cmd *cli.Command) error {
-	var path string
-
 	args := cmd.Args()
 	if args.Len() < 1 {
 		return errors.New("command not specified")
@@ -426,6 +428,8 @@ func run(ctx context.Context, cmd *cli.Command) error {
 
 	G := lue.New(globalEnv)
 	defer G.Close()
+
+	path := ""
 	if ok {
 		cfg, err := config.Parse(cmd.String("proj"))
 		if err != nil {

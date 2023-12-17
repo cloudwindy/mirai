@@ -32,6 +32,7 @@ type Config struct {
 
 type Application struct {
 	c   Config
+	up  bool
 	sub bool
 	fiber.Router
 }
@@ -146,6 +147,9 @@ func appAddMethod(method string) lue.Fun {
 // appStart starts the app's listener.
 func appStart(E *lue.Engine) int {
 	app := E.Data(1).(*Application)
+	if app.up {
+		E.Error("app start: already started")
+	}
 	if app.sub {
 		E.Error("app start: cannot start a subrouter")
 	}
@@ -153,6 +157,7 @@ func appStart(E *lue.Engine) int {
 	if E.Top() > 1 {
 		listen = E.String(2)
 	}
+	app.up = true
 	if err := app.c.Start(listen); err != nil {
 		E.Error("app start: %v", err)
 	}
@@ -176,6 +181,9 @@ func appReload(E *lue.Engine) int {
 
 func appStop(E *lue.Engine) int {
 	app := E.Data(1).(*Application)
+	if !app.up {
+		E.Error("app stop: already stopped")
+	}
 	if app.sub {
 		E.Error("app stop: cannot stop a subrouter")
 	}
@@ -183,8 +191,9 @@ func appStop(E *lue.Engine) int {
 	if E.Top() > 1 {
 		timeout = E.Number(2)
 	}
-	const sec = float64(time.Second)
-	if err := app.c.Stop(time.Duration(timeout * sec)); err != nil {
+	app.up = false
+	const s = float64(time.Second)
+	if err := app.c.Stop(time.Duration(timeout * s)); err != nil {
 		E.Error("app stop: %v", err)
 	}
 	return 0
